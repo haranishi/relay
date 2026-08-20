@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "relay-read-model",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "secrets": { "required": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"] },
+  "queues": {
+    "consumers": [
+      { "queue": "relay-read-model-commands-dev", "max_batch_size": 10, "max_retries": 5, "max_concurrency": 1, "dead_letter_queue": "relay-read-model-dlq-dev" }
+    ]
+  },
+  "observability": { "enabled": true, "logs": { "head_sampling_rate": 1 } }
+}

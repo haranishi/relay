@@ -1,0 +1,28 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "relay-listing",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "vars": { "ENVIRONMENT": "development" },
+  "secrets": {
+    "required": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"]
+  },
+  "r2_buckets": [
+    { "binding": "LISTING_IMAGES", "bucket_name": "relay-listing-images-dev" }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "DOMAIN_EVENTS", "queue": "relay-domain-events-dev" }
+    ],
+    "consumers": [
+      { "queue": "relay-listing-commands-dev", "max_batch_size": 10, "max_retries": 5, "max_concurrency": 1 }
+    ]
+  },
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1 }
+  }
+}

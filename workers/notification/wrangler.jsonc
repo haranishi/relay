@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "relay-notification",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "queues": {
+    "consumers": [
+      { "queue": "relay-notification-commands-dev", "max_batch_size": 10, "max_retries": 5, "dead_letter_queue": "relay-notification-dlq-dev" }
+    ]
+  },
+  "observability": { "enabled": true, "logs": { "head_sampling_rate": 1 } }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "relay-matching",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "vars": { "ENVIRONMENT": "development" },
+  "secrets": { "required": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"] },
+  "queues": {
+    "producers": [
+      { "binding": "DOMAIN_EVENTS", "queue": "relay-domain-events-dev" }
+    ],
+    "consumers": [
+      { "queue": "relay-matching-commands-dev", "max_batch_size": 10, "max_retries": 5 }
+    ]
+  },
+  "triggers": { "crons": ["1-59/2 * * * *"] },
+  "observability": { "enabled": true, "logs": { "head_sampling_rate": 1 } }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "relay-api-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": {
+    "ENVIRONMENT": "development",
+    "ALLOW_DEMO_AUTH": "true"
+  },
+  "services": [
+    { "binding": "COMMUNITY_SERVICE", "service": "relay-community-auth" },
+    { "binding": "LISTING_SERVICE", "service": "relay-listing" },
+    { "binding": "MATCHING_SERVICE", "service": "relay-matching" },
+    { "binding": "READ_MODEL_SERVICE", "service": "relay-read-model" }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  }
+}

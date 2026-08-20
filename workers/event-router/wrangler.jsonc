@@ -1,0 +1,20 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "relay-event-router",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "queues": {
+    "producers": [
+      { "binding": "LISTING_COMMANDS", "queue": "relay-listing-commands-dev" },
+      { "binding": "MATCHING_COMMANDS", "queue": "relay-matching-commands-dev" },
+      { "binding": "READ_MODEL_COMMANDS", "queue": "relay-read-model-commands-dev" },
+      { "binding": "NOTIFICATION_COMMANDS", "queue": "relay-notification-commands-dev" }
+    ],
+    "consumers": [
+      { "queue": "relay-domain-events-dev", "max_batch_size": 10, "max_retries": 5, "dead_letter_queue": "relay-domain-events-dlq-dev" }
+    ]
+  },
+  "observability": { "enabled": true, "logs": { "head_sampling_rate": 1 } }
+}

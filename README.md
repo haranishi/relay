@@ -86,3 +86,9 @@ relay-domain-events-dlq-dev
 relay-read-model-dlq-dev
 relay-notification-dlq-dev
 ```
+
+## ライセンス
+
+自作のコード・資料は [MIT License](LICENSE) で公開しています。
+外部ライブラリ・素材・フォントは各権利者のライセンスに従い、このMITライセンスでは再許諾しません。
+ソース公開は、サービスの一般提供・ストア配布・本番運用の安全性を保証するものではありません。

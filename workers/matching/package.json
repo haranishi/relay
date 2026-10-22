@@ -16,7 +16,7 @@
     "@relay/contracts": "workspace:*",
     "@relay/domain": "workspace:*",
     "@relay/turso": "workspace:*",
-    "hono": "4.12.31"
+    "hono": "4.13.13"
   },
   "devDependencies": {
     "vitest": "4.1.10",

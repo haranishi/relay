@@ -12,5 +12,5 @@
     "cf-typegen": "wrangler types --strict-vars=false"
   },
   "dependencies": { "@relay/contracts": "workspace:*" },
-  "devDependencies": { "vitest": "4.1.10", "wrangler": "4.113.0" }
+  "devDependencies": { "vitest": "4.1.11", "wrangler": "4.113.0" }
 }

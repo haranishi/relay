@@ -14,10 +14,10 @@
   "dependencies": {
     "@relay/turso": "workspace:*",
     "hono": "4.13.13",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "vitest": "4.1.10",
-    "wrangler": "4.113.0"
+    "vitest": "4.1.12",
+    "wrangler": "4.151.1"
   }
 }

@@ -18,6 +18,7 @@
   旧Miniflareに残るsharp 0.34.5とundici 7.28.0の経路を除く。
 - 親依存の更新だけで残るglob・brace-expansion・js-yaml・proxy-addr・qs・Viteは、
   脆弱な範囲だけを選ぶpnpmのoverridesで同じmajor内の修正版へ固定する。
+- 追加レビューで判明したZodのメモリ枯渇脆弱性も、直接依存を4.6.7へ更新して修正する。
 - 公開直後の版を避ける既存の最小経過日数とビルド許可の設定を維持する。
 - アプリの仕様変更や一律の最新版更新は避け、lockfileを再生成する。
 
@@ -43,6 +44,12 @@ GitHub Dependabotの各警告およびnpmの公開パッケージ情報。
 - `pnpm test`：全11タスク成功、契約3件とドメイン5件が合格。
 - `pnpm build`：全11タスク成功（Workers dry-runとNext.jsの本番ビルド）。
 - 保存したGitHub警告50件とlockfileの版を照合し、影響範囲に残る版は0件。
+- 追加レビューで[Zodの勧告](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)を確認。
+  契約、API Gateway、Community Authの全直接依存を4.6.7へ更新した。
+- Zod更新後も上記のlint・型検査・8テスト・全11ビルドが成功した。
+- 実スキーマの境界11条件とGatewayの認証・権限検証・中継5条件を、
+  合成データとService Bindingのスタブで確認した。外部サービスには接続していない。
+- 不正な1万要素の配列は拒否され、エラーは1件で打ち切られた。
 - npm監査APIの呼び出しは未実施。未知の脆弱性や到達性を保証する結果ではない。
 - Webに既存のworkers-typesとWranglerのpeer警告は残る。
   実際の型検査とdry-runは成功した。クラウドへの配置は行っていない。

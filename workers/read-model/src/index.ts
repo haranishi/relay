@@ -63,16 +63,18 @@ async function projectEvent(env: Env, event: DomainEvent): Promise<void> {
   try {
     const processed = await client.execute({ sql: `SELECT 1 FROM processed_events WHERE event_id = ?`, args: [event.eventId] });
     if (processed.rows.length > 0) return;
-    const statements: InStatement[] = [projection(event), {
-      sql: `INSERT INTO processed_events (event_id, event_type, processed_at) VALUES (?, ?, ?)`,
-      args: [event.eventId, event.eventType, Date.now()]
+    const listingId = expectString(event.payload.listingId ?? event.aggregateId, "payload.listingId");
+    const statements: InStatement[] = [projection(event, listingId), {
+      sql: `INSERT INTO processed_events (event_id, event_type, processed_at)
+            SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM listing_feed WHERE id = ?)`,
+      args: [event.eventId, event.eventType, Date.now(), listingId]
     }];
-    await client.batch(statements, "write");
+    const [, receipt] = await client.batch(statements, "write");
+    if (!receipt?.rowsAffected) throw new Error("Listing has not reached the feed yet");
   } finally { client.close(); }
 }
 
-function projection(event: DomainEvent): InStatement {
-  const listingId = expectString(event.payload.listingId ?? event.aggregateId, "payload.listingId");
+function projection(event: DomainEvent, listingId: string): InStatement {
   switch (event.eventType) {
     case "ListingPublished.v1":
       return {

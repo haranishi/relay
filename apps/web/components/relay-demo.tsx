@@ -100,7 +100,9 @@ export function RelayDemo() {
               <button type="button" onClick={advance}>{currentScene.action}<span>→</span></button>
             </div>
           ) : (
-            <div className="complete-card"><span>✓</span><strong>受け渡しが完了しました</strong><p>Bさんが新しい持ち主になりました。出品者と受取者の双方へ完了通知を送信します。</p></div>
+            <div className="complete-card" role="region" aria-labelledby="completion-title" tabIndex={-1}
+              ref={(node) => node?.focus()}>
+              <span aria-hidden="true">✓</span><strong id="completion-title">受け渡しが完了しました</strong><p>Bさんが新しい持ち主になりました。出品者と受取者の双方へ完了通知を送信します。</p></div>
           )}
 
           <ol className="progress-list">

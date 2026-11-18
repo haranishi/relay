@@ -150,8 +150,8 @@ app.post("/internal/listings/:listingId/selection", async (context) => {
       })),
       handoffInsert(handoff),
       {
-        sql: `INSERT INTO idempotency_keys (key, resource_id, response_json, created_at) VALUES (?, ?, ?, ?)`,
-        args: [idempotencyKey, handoff.id, JSON.stringify(handoff), Date.now()]
+        sql: `INSERT INTO idempotency_keys (listing_id, key, resource_id, response_json, created_at) VALUES (?, ?, ?, ?, ?)`,
+        args: [state.listingId, idempotencyKey, handoff.id, JSON.stringify(handoff), Date.now()]
       },
       {
         sql: `UPDATE listing_snapshots SET status = 'RESERVED', updated_at = ? WHERE id = ?`,
@@ -243,7 +243,7 @@ async function loadState(client: Client, listingId: string, communityId: string)
     client.execute({ sql: `SELECT id, applicant_id, status FROM applications WHERE listing_id = ?`, args: [listingId] }),
     client.execute({ sql: `SELECT application_id, rank, status FROM selection_candidates WHERE listing_id = ?`, args: [listingId] }),
     client.execute({ sql: `SELECT id, application_id, giver_id, receiver_id, status, version, confirmation_expires_at FROM handoffs WHERE listing_id = ?`, args: [listingId] }),
-    client.execute(`SELECT key, resource_id FROM idempotency_keys`)
+    client.execute({ sql: `SELECT key, resource_id FROM idempotency_keys WHERE listing_id = ?`, args: [listingId] })
   ]);
   const row = listing.rows[0];
   if (!row) throw new HTTPException(404, { message: "Listing is not available in matching service" });

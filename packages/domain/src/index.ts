@@ -124,6 +124,9 @@ export function selectRecipients(
     const existing = state.handoffs.find((handoff) => handoff.id === existingId);
     if (existing) return existing;
   }
+  if (state.listingStatus === "COMPLETED") {
+    throw new DomainError("LISTING_NOT_OPEN", "受渡しが完了した出品です");
+  }
   if (state.handoffs.some((handoff) => isActive(handoff.status))) {
     throw new DomainError("SELECTION_EXISTS", "受取候補は既に選定済みです");
   }

@@ -293,7 +293,7 @@ async function projectListing(env: Env, event: DomainEvent): Promise<void> {
   const client = createTursoClient(env);
   try {
     await client.execute({
-      sql: `INSERT INTO listing_snapshots (id, community_id, owner_id, status, updated_at) VALUES (?, ?, ?, 'OPEN', ?) ON CONFLICT(id) DO UPDATE SET status = 'OPEN', updated_at = excluded.updated_at`,
+      sql: `INSERT INTO listing_snapshots (id, community_id, owner_id, status, updated_at) VALUES (?, ?, ?, 'OPEN', ?) ON CONFLICT(id) DO NOTHING`,
       args: [event.aggregateId, event.communityId, expectString(event.payload.ownerId, "payload.ownerId"), Date.now()]
     });
   } finally {

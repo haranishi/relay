@@ -138,6 +138,11 @@ app.post("/internal/listings/:listingId/selection", async (context) => {
       sql: `INSERT INTO selection_candidates (listing_id, application_id, rank, status) VALUES (?, ?, ?, ?)`,
       args: [state.listingId, candidate.applicationId, candidate.rank, candidate.status]
     }));
+    // A reopened listing starts a new ranking. Keep the old handoffs as history.
+    statements.unshift({
+      sql: "DELETE FROM selection_candidates WHERE listing_id = ? AND status = 'skipped'",
+      args: [state.listingId]
+    });
     statements.push(
       ...state.applications.map((application) => ({
         sql: `UPDATE applications SET status = ? WHERE id = ?`,

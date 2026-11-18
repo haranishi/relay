@@ -24,7 +24,7 @@ const events = [
 
 export function RelayDemo() {
   const [step, setStep] = useState<DemoStep>(0);
-  const visibleEvents = useMemo(() => events.slice(0, step === 0 ? 1 : step + 2), [step]);
+  const visibleEvents = useMemo(() => events.slice(0, 1 + step + (step >= 4 ? 1 : 0)), [step]);
   const listingStatus = step === 5 ? "受渡し完了" : step >= 3 ? "受取者決定" : "募集中";
   const currentScene = scene.at(step);
 

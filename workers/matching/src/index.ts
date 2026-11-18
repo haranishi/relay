@@ -56,6 +56,18 @@ app.post("/internal/listings/:listingId/applications", async (context) => {
   try {
     const state = await loadState(client, context.req.param("listingId"), auth.communityId);
     const application = applyForListing(state, { applicantId: auth.userId }, clock);
+    const detail = await context.env.LISTING_SERVICE.fetch(
+      new Request(`https://listing.internal/internal/listings/${encodeURIComponent(state.listingId)}`, {
+        headers: { [INTERNAL_AUTH_HEADER]: context.req.header(INTERNAL_AUTH_HEADER)! }
+      })
+    );
+    if (!detail.ok) throw new HTTPException(503, { message: "Could not check the pickup deadline" });
+    const { pickupDeadline } = await detail.json<{ pickupDeadline: string }>();
+    const deadline = Date.parse(pickupDeadline);
+    if (!Number.isFinite(deadline)) throw new Error("Invalid listing pickup deadline");
+    if (clock.now().getTime() > deadline) {
+      throw new DomainError("LISTING_NOT_OPEN", "受取期限を過ぎた出品には応募できません");
+    }
     const event = state.events.at(-1)!;
     await client.batch(
       [

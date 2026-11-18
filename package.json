@@ -6,7 +6,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "pnpm -r --filter './packages/**' build && eslint . --max-warnings=0",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "cf-typegen": "turbo run cf-typegen",

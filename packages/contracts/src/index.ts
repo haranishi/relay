@@ -128,7 +128,11 @@ export type DomainEvent = z.infer<typeof domainEventSchema>;
 export const INTERNAL_AUTH_HEADER = "x-relay-auth-context";
 
 export function encodeAuthContext(context: AuthContext): string {
-  return btoa(JSON.stringify(authContextSchema.parse(context)));
+  // ASCII JSON also round-trips through older Workers that decode with atob.
+  const json = JSON.stringify(authContextSchema.parse(context));
+  return btoa(json.replace(/[^\x20-\x7e]/g, (unit) =>
+    `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`
+  ));
 }
 
 export function decodeAuthContext(value: string | undefined): AuthContext {

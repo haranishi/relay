@@ -14,6 +14,7 @@ turso db shell relay-community-dev < db/community/0001_initial.sql
 turso db shell relay-community-dev < db/community/demo_seed.sql
 turso db shell relay-listing-dev < db/listing/0001_initial.sql
 turso db shell relay-matching-dev < db/matching/0001_initial.sql
+turso db shell relay-matching-dev < db/matching/0002_handoff_transition.sql
 turso db shell relay-read-model-dev < db/read-model/0001_initial.sql
 ```
 

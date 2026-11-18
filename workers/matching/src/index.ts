@@ -27,7 +27,7 @@ import {
   parseJsonColumn,
   publishPendingOutbox
 } from "@relay/turso";
-import type { Client, InStatement } from "@libsql/client/web";
+import { LibsqlError, type Client, type InStatement } from "@libsql/client/web";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
@@ -224,6 +224,9 @@ app.post("/internal/handoffs/:handoffId/complete", async (context) => {
 });
 
 app.onError((error, context) => {
+  if (error instanceof LibsqlError && error.message.includes("relay_handoff_already_closed")) {
+    return context.json({ error: "HANDOFF_NOT_ACTIVE" }, 409);
+  }
   const status = error instanceof HTTPException ? error.status : error instanceof DomainError ? 409 : 500;
   console.error(JSON.stringify({ service: "matching", path: context.req.path, status, error: String(error) }));
   return context.json({ error: error instanceof DomainError ? error.code : "request_failed", detail: error.message }, status);

@@ -1,5 +1,7 @@
 # Turso databases
 
+Matching DBには応募受付の追加条件もあります。既存の番号付きMigrationに続けて `db/matching/0004_application_open.sql` を1回適用してください。
+
 Relayはサービス境界ごとに4つのTurso DBを利用します。
 
 - `community`: コミュニティと在籍資格

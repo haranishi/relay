@@ -96,6 +96,11 @@ app.post("/internal/listings/:listingId/applications", async (context) => {
     );
     context.executionCtx.waitUntil(publishOutbox(context.env));
     return context.json(application, 201);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("relay_listing_not_open")) {
+      throw new DomainError("LISTING_NOT_OPEN", "募集終了後は応募できません");
+    }
+    throw error;
   } finally {
     client.close();
   }

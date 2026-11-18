@@ -13,6 +13,7 @@ export class DomainError extends Error {
       | "DUPLICATE_APPLICATION"
       | "APPLICATION_NOT_FOUND"
       | "SELECTION_EXISTS"
+      | "HANDOFF_EXPIRED"
       | "HANDOFF_NOT_FOUND"
       | "HANDOFF_NOT_ACTIVE",
     message: string
@@ -43,6 +44,7 @@ export type Handoff = {
   receiverId: string;
   status: HandoffStatus;
   eventVersion: number;
+  confirmationExpiresAt: string;
 };
 
 export type MatchingState = {
@@ -126,6 +128,9 @@ export function selectRecipients(
     throw new DomainError("SELECTION_EXISTS", "受取候補は既に選定済みです");
   }
 
+  if (Date.parse(input.confirmationExpiresAt) <= clock.now().getTime()) {
+    throw new DomainError("HANDOFF_EXPIRED", "承諾期限を過ぎています");
+  }
   const selected = findApplication(state, input.selectedApplicationId);
   const backups = input.backupApplicationIds.map((id) => findApplication(state, id));
 
@@ -143,6 +148,7 @@ export function selectRecipients(
     applicationId: selected.id,
     giverId: state.giverId,
     receiverId: selected.applicantId,
+    confirmationExpiresAt: input.confirmationExpiresAt,
     status: "PROPOSED",
     eventVersion: 1
   };
@@ -230,6 +236,7 @@ export function cancelAndReoffer(
     applicationId: application.id,
     giverId: state.giverId,
     receiverId: application.applicantId,
+    confirmationExpiresAt: new Date(clock.now().getTime() + 86_400_000).toISOString(),
     status: "PROPOSED",
     eventVersion: 1
   };
@@ -255,6 +262,9 @@ export function confirmAndComplete(
   if (!handoff) throw new DomainError("HANDOFF_NOT_FOUND", "受渡しが見つかりません");
   if (handoff.status !== "PROPOSED") {
     throw new DomainError("HANDOFF_NOT_ACTIVE", "確認待ちの受渡しではありません");
+  }
+  if (Date.parse(handoff.confirmationExpiresAt) <= clock.now().getTime()) {
+    throw new DomainError("HANDOFF_EXPIRED", "承諾期限を過ぎています");
   }
   handoff.status = "COMPLETED";
   handoff.eventVersion += 1;

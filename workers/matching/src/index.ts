@@ -148,7 +148,7 @@ app.post("/internal/listings/:listingId/selection", async (context) => {
         sql: `UPDATE applications SET status = ? WHERE id = ?`,
         args: [application.status, application.id]
       })),
-      handoffInsert(handoff, parsed.data.confirmationExpiresAt),
+      handoffInsert(handoff),
       {
         sql: `INSERT INTO idempotency_keys (key, resource_id, response_json, created_at) VALUES (?, ?, ?, ?)`,
         args: [idempotencyKey, handoff.id, JSON.stringify(handoff), Date.now()]
@@ -191,7 +191,7 @@ app.post("/internal/handoffs/:handoffId/cancel", async (context) => {
       { sql: `UPDATE listing_snapshots SET status = ?, updated_at = ? WHERE id = ?`, args: [state.listingStatus, Date.now(), state.listingId] },
       ...state.events.map(outboxInsert)
     ];
-    if (next) statements.push(handoffInsert(next, new Date(Date.now() + 86_400_000).toISOString()));
+    if (next) statements.push(handoffInsert(next));
     await client.batch(statements, "write");
     context.executionCtx.waitUntil(publishOutbox(context.env));
     return context.json({ cancelledHandoffId: current.id, nextHandoff: next });
@@ -242,7 +242,7 @@ async function loadState(client: Client, listingId: string, communityId: string)
     client.execute({ sql: `SELECT owner_id, status FROM listing_snapshots WHERE id = ? AND community_id = ? LIMIT 1`, args: [listingId, communityId] }),
     client.execute({ sql: `SELECT id, applicant_id, status FROM applications WHERE listing_id = ?`, args: [listingId] }),
     client.execute({ sql: `SELECT application_id, rank, status FROM selection_candidates WHERE listing_id = ?`, args: [listingId] }),
-    client.execute({ sql: `SELECT id, application_id, giver_id, receiver_id, status, version FROM handoffs WHERE listing_id = ?`, args: [listingId] }),
+    client.execute({ sql: `SELECT id, application_id, giver_id, receiver_id, status, version, confirmation_expires_at FROM handoffs WHERE listing_id = ?`, args: [listingId] }),
     client.execute(`SELECT key, resource_id FROM idempotency_keys`)
   ]);
   const row = listing.rows[0];
@@ -270,6 +270,7 @@ async function loadState(client: Client, listingId: string, communityId: string)
       giverId: expectString(item.giver_id, "handoff.giver_id"),
       receiverId: expectString(item.receiver_id, "handoff.receiver_id"),
       status: expectString(item.status, "handoff.status") as HandoffStatus,
+      confirmationExpiresAt: new Date(expectNumber(item.confirmation_expires_at, "confirmation_expires_at")).toISOString(),
       eventVersion: expectNumber(item.version, "handoff.version")
     })),
     events: [],
@@ -282,10 +283,10 @@ async function loadState(client: Client, listingId: string, communityId: string)
   };
 }
 
-function handoffInsert(handoff: MatchingState["handoffs"][number], expiresAt: string): InStatement {
+function handoffInsert(handoff: MatchingState["handoffs"][number]): InStatement {
   return {
     sql: `INSERT INTO handoffs (id, listing_id, application_id, giver_id, receiver_id, status, confirmation_expires_at, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [handoff.id, handoff.listingId, handoff.applicationId, handoff.giverId, handoff.receiverId, handoff.status, Date.parse(expiresAt), handoff.eventVersion, Date.now(), Date.now()]
+    args: [handoff.id, handoff.listingId, handoff.applicationId, handoff.giverId, handoff.receiverId, handoff.status, Date.parse(handoff.confirmationExpiresAt), handoff.eventVersion, Date.now(), Date.now()]
   };
 }
 

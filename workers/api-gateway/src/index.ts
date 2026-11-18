@@ -46,7 +46,7 @@ app.get("/api/v1/health", (context) =>
 );
 
 app.get("/api/v1/communities/:communityId/listings", (context) =>
-  proxy(context, context.env.READ_MODEL_SERVICE, "/internal/listings")
+  proxy(context, context.env.READ_MODEL_SERVICE, `/internal/listings${new URL(context.req.url).search}`)
 );
 
 app.post("/api/v1/communities/:communityId/listings", (context) =>

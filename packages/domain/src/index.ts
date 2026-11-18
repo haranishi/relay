@@ -303,6 +303,11 @@ function makeEvent(
     producer: "matching-service",
     correlationId: clock.id(),
     causationId: null,
-    payload: input.payload
+    // Each new handoff starts at 1; closing it advances its version. Their
+    // sum increases across recipients and across successive selection rounds.
+    payload: input.eventType === "ApplicationSubmitted.v1" ? input.payload : {
+      ...input.payload,
+      listingRevision: state.handoffs.reduce((sum, handoff) => sum + handoff.eventVersion, 0)
+    }
   };
 }

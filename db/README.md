@@ -18,4 +18,11 @@ turso db shell relay-matching-dev < db/matching/0002_handoff_transition.sql
 turso db shell relay-read-model-dev < db/read-model/0001_initial.sql
 ```
 
+出品・一覧DBでは、初期テーブルの作成後、Workerの更新前に次の追加Migrationをそれぞれ1回適用します。
+
+```bash
+turso db shell relay-listing-dev < db/listing/0002_matching_revision.sql
+turso db shell relay-read-model-dev < db/read-model/0002_matching_revision.sql
+```
+
 各Workerの `TURSO_DATABASE_URL` と `TURSO_AUTH_TOKEN` は `wrangler secret put` で個別登録します。

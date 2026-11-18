@@ -159,6 +159,7 @@ async function applyListingCommand(env: Env, event: DomainEvent): Promise<void> 
   if (!["RecipientSelected.v1", "RecipientReoffered.v1", "HandoffCompleted.v1", "ListingReopened.v1"].includes(event.eventType)) return;
   const status = event.eventType === "HandoffCompleted.v1" ? "COMPLETED" : event.eventType === "ListingReopened.v1" ? "OPEN" : "RESERVED";
   const listingId = expectString(event.payload.listingId ?? event.aggregateId, "payload.listingId");
+  const revision = expectNumber(event.payload.listingRevision ?? 0, "payload.listingRevision");
   const client = createTursoClient(env);
   try {
     const alreadyProcessed = await client.execute({
@@ -169,8 +170,10 @@ async function applyListingCommand(env: Env, event: DomainEvent): Promise<void> 
     await client.batch(
       [
         {
-          sql: `UPDATE listings SET status = ?, version = version + 1, updated_at = ? WHERE id = ? AND community_id = ?`,
-          args: [status, Date.now(), listingId, event.communityId]
+          sql: `UPDATE listings SET status = ?, matching_revision = ?, version = version + 1, updated_at = ?
+                WHERE id = ? AND community_id = ? AND status <> 'COMPLETED'
+                  AND (matching_revision = 0 OR matching_revision < ?)`,
+          args: [status, revision, Date.now(), listingId, event.communityId, revision]
         },
         {
           sql: `INSERT INTO processed_events (event_id, event_type, processed_at) VALUES (?, ?, ?)`,

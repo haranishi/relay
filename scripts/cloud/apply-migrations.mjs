@@ -42,14 +42,16 @@ function sqlError(error, url, authToken) {
 async function applyFile(client, directory, file) {
   const transaction = await client.transaction("write");
   try {
-    const entry = await transaction.execute("SELECT file FROM _relay_migrations WHERE file = ?", [file]);
+    // リモート（Hrana）のトランザクションの execute は、文（{ sql, args }）の1引数だけを受け取る。
+    // execute(sql, args) の形はローカルのファイル DB でしか通らず、リモートでは args が捨てられる。
+    const entry = await transaction.execute({ sql: "SELECT file FROM _relay_migrations WHERE file = ?", args: [file] });
     if (entry.rows.length > 0) return false;
 
     const sql = await readFile(join(directory, file), "utf8");
     // 0003 の外側の BEGIN / COMMIT だけを外し、SQL と台帳を一緒に確定する。
     const body = sql.replace(/^\s*BEGIN IMMEDIATE;([\s\S]*)\nCOMMIT;\s*$/i, "$1");
     await transaction.executeMultiple(body);
-    await transaction.execute("INSERT INTO _relay_migrations (file, applied_at) VALUES (?, ?)", [file, Date.now()]);
+    await transaction.execute({ sql: "INSERT INTO _relay_migrations (file, applied_at) VALUES (?, ?)", args: [file, Date.now()] });
     await transaction.commit();
     return true;
   } finally {
@@ -57,7 +59,7 @@ async function applyFile(client, directory, file) {
   }
 }
 
-export async function main(args, { env = process.env, root = dbRoot, log = console.log } = {}) {
+export async function main(args, { env = process.env, root = dbRoot, log = console.log, openClient } = {}) {
   const { values, positionals } = parseCliArgs(args, {
     "demo-seed": { type: "boolean" },
     list: { type: "boolean" },
@@ -79,10 +81,10 @@ export async function main(args, { env = process.env, root = dbRoot, log = conso
   if (!url || !URL.canParse(url) || (!url.startsWith("file:") && !authToken)) {
     throw new CliError("TURSO_DATABASE_URL と TURSO_AUTH_TOKEN を設定してください。");
   }
-  const { createClient } = require("@libsql/client");
+  const open = openClient ?? require("@libsql/client").createClient;
   let client;
   try {
-    client = createClient({ url, authToken });
+    client = open({ url, authToken });
     await client.execute("CREATE TABLE IF NOT EXISTS _relay_migrations (file TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)");
   } catch (error) {
     client?.close();

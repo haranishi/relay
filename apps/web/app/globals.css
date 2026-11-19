@@ -304,8 +304,12 @@ footer { max-width: 1180px; margin: auto; padding: 22px 0 35px; display: flex; j
 }
 
 /* 選定の確定：要約と「候補を確定する」を、画面の下に張りつける（応募者のカードが長くても、押す場所が見える） */
-.pilot-select-actions { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 10px; margin: 0 -4px; padding: 12px 4px 6px; background: linear-gradient(to bottom, rgba(237, 246, 241, 0), #edf6f1 14px); }
-.pilot-select-actions p { margin: 0; }
+.pilot-select-actions { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 6px; margin: 0 -4px; padding: 10px 4px 4px; background: linear-gradient(to bottom, rgba(237, 246, 241, 0), #edf6f1 10px); }
+.pilot-select-actions p { margin: 0; font-size: .8125rem; line-height: 1.4; }
+/* 押せないあいだは、薄くするのでなく、濃い文字・薄い地にする（opacity を下げると、文字が 2.5:1 まで薄くなる） */
+.pilot-select-actions .pilot-button:disabled { opacity: 1; border-color: #b9c8bf; background: #dbe5df; color: #3c4d47; }
+/* 「選ばない」は、最初の状態。塗らない（「第一候補：未選択」の文と食い違うため） */
+.pilot-choice input[value="none"]:checked + span { border-color: var(--muted); color: var(--ink); background: var(--surface); }
 /* ログインの下の、3行の流れ */
 .pilot-intro-steps { margin: 4px 0 0; padding-left: 1.4em; color: var(--ink); font-size: .875rem; line-height: 1.7; }
 .pilot-intro-steps li + li { margin-top: 4px; }

@@ -316,9 +316,7 @@ function ListingDetails({ listing, status }: { listing: Listing; status: Listing
           )}</ul></dd></div>
           <div><dt>受取期限</dt><dd><strong className={deadlineClass}><time dateTime={listing.pickupDeadline}>{formatPilotDate(listing.pickupDeadline)}</time>まで</strong></dd></div>
           {dimensionsCm && <div><dt>サイズ</dt><dd>幅{dimensionsCm.width} × 奥行{dimensionsCm.depth} × 高さ{dimensionsCm.height}cm</dd></div>}
-          {logistics.length > 0 && <div><dt>搬出条件</dt><dd>{logistics.map((item, index) =>
-            <span key={item}>{index > 0 && " / "}<span className="pilot-nowrap">{item}</span></span>
-          )}</dd></div>}
+          {logistics.length > 0 && <div><dt>搬出条件</dt><dd><ul>{logistics.map((item) => <li key={item}>{item}</li>)}</ul></dd></div>}
         </dl>
       </div>
     </>

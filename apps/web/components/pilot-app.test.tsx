@@ -23,14 +23,14 @@ const applicantB: Application = {
   ...applicantA, id: "application-b", applicantId: "receiver-b", createdAt: "2026-11-19T02:00:00Z"
 };
 
-function renderPilot(user: PilotUser | null, matching?: MatchingView) {
+function renderPilot(user: PilotUser | null, matching?: MatchingView, shown: Listing = listing) {
   const state = vi.mocked(useState);
   state.mockImplementation((initial?: unknown) => [typeof initial === "function" ? (initial as () => unknown)() : initial, vi.fn()]);
   state.mockReturnValueOnce([user, vi.fn()]);
   if (matching) {
     state.mockReturnValueOnce([null, vi.fn()]).mockReturnValueOnce([false, vi.fn()])
       .mockReturnValueOnce([{
-        listings: [], listingId: listing.id, listing, matching, phase: "ready", error: null
+        listings: [], listingId: shown.id, listing: shown, matching, phase: "ready", error: null
       }, vi.fn()]);
   }
   return renderToStaticMarkup(<PilotApp />);
@@ -131,9 +131,10 @@ it("応募ごとに名前のついたラジオ群があり、第一候補が決�
       "<span>第一候補</span></label>", "<span>予備候補</span></label>", "<span>選ばない</span></label>"
     ]);
   }
-  expect(html).toContain("第一候補を1人選ぶと、候補を確定できます。");
+  expect(html).toContain("第一候補を1人選ぶと、確定できます");
   expect(html).toContain("予備候補は2人までです。予備候補は応募が早い順に繰り上がります。");
-  expect(html).toContain("第一候補：未選択／予備：なし");
+  // 選ぶ前は、「選ばない」が選ばれた状態の見た目になっていても、「未選択」という矛盾した文は出さない
+  expect(html).not.toContain("未選択");
   expect(html).toMatch(/<button[^>]*disabled=""[^>]*>候補を確定する<\/button>/);
 });
 
@@ -150,7 +151,9 @@ it("選んだ候補をバッジと要約に出し、予備が2人いると他の
   expect(backups).toHaveLength(3);
   expect(backups[0]).toContain('disabled=""');
   expect(backups.slice(1).every((radio) => radio.includes('checked=""') && !radio.includes('disabled=""'))).toBe(true);
-  expect(html).toContain('<button class="pilot-button pilot-main-action" type="submit">候補を確定する</button>');
+  expect(html).toMatch(/<button class="pilot-button pilot-main-action" type="submit" aria-describedby="[^"]+">候補を確定する<\/button>/);
+  // 選んだあとの要約は、確定の帯の1行に入る
+  expect(html).toContain("第一候補：受取人A／予備：受取人B、参加者");
 });
 
 it.each([
@@ -175,4 +178,13 @@ it.each([
   expect(html).toContain("受取期限");
   expect(html).not.toContain('class="pickup-deadline-active"');
   expect(html).not.toContain("いま更新する");
+});
+
+it("搬出条件は、1項目1行で表示する（「手伝い 2人」だけが次の行に落ちない）", () => {
+  const html = renderPilot(
+    { id: "receiver-a", displayName: "受取人A" },
+    { listingStatus: "OPEN", viewerRole: "none", applications: [], handoffs: [] },
+    { ...listing, logistics: { floor: 3, hasElevator: false, helpersRequired: 2 } }
+  );
+  expect(html).toContain("<dt>搬出条件</dt><dd><ul><li>3階</li><li>エレベーターなし</li><li>手伝い 2人</li></ul></dd>");
 });

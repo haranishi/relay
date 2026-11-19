@@ -191,3 +191,12 @@ describe("進み具合の『辞退・繰り上げ』", () => {
       .toMatchObject({ state: "idle", detail: "必要に応じて次の候補へ" });
   });
 });
+
+it("承諾待ちのあいだ、受取人本人には「あなたの操作待ち」、出品者には「受取人の操作待ち」と書く", () => {
+  const detailOf = (view: ReturnType<typeof buildPilotView>) => view.progress.find(({ label }) => label === "完了")?.detail;
+  expect(detailOf(buildPilotView(alice, listing, selected))).toBe("あなたの操作待ち");
+  expect(detailOf(buildPilotView(giver, listing, { ...selected, viewerRole: "giver" }))).toBe("受取人の操作待ち");
+  // 選ばれていない応募者には、自分の受け渡しが見えない。本人の操作待ちとは書かない
+  expect(detailOf(buildPilotView(bob, listing, { ...open, listingStatus: "RESERVED", viewerRole: "applicant" })))
+    .toBe("受取人の操作待ち");
+});

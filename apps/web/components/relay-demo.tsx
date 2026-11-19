@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { demoSofaDescription } from "../lib/pilot-copy";
+import { ShareButtons } from "./share-buttons";
+import { SofaVisual } from "./sofa-visual";
 
 type DemoStep = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -40,6 +43,7 @@ export function RelayDemo() {
           <span>Relay</span>
         </a>
         <div className="header-actions">
+          <a className="pilot-button pilot-entry" href="/pilot">招待コードで試す</a>
           <span className="community-pill"><span className="live-dot" />Relay Demo Campus</span>
           <button className="avatar" type="button" aria-label="プロフィール">原</button>
         </div>
@@ -67,18 +71,12 @@ export function RelayDemo() {
 
       <section className="workspace" aria-label="Relayデモ">
         <article className="listing-panel">
-          <div className="sofa-visual" role="img" aria-label="譲渡予定のグリーンの二人掛けソファ">
-            <span className="visual-tag">無料</span>
-            <div className="sun" />
-            <div className="plant"><i /><b /><b /><b /></div>
-            <div className="sofa"><span className="sofa-back" /><span className="sofa-seat" /><i /><b /></div>
-            <span className="visual-caption">PHOTO 01 / 03</span>
-          </div>
+          <SofaVisual caption="PHOTO 01 / 03" />
 
           <div className="listing-body">
             <div className="listing-meta"><span className={`status status-${step === 5 ? "done" : step >= 3 ? "reserved" : "open"}`}>{listingStatus}</span><span>家具</span><span>使用感あり</span></div>
             <h2>二人掛けソファ、引き取ってください</h2>
-            <p className="description">卒業に伴い手放します。4年間使いましたが、へたりは少なくまだ十分使えます。搬出を一緒に手伝ってくれる方を優先します。</p>
+            <p className="description">{demoSofaDescription}</p>
             <dl className="facts">
               <div><dt>受取場所</dt><dd>南キャンパス・学生寮A棟</dd></div>
               <div><dt>受取期限</dt><dd><strong>3月24日 18:00まで</strong></dd></div>
@@ -132,6 +130,7 @@ export function RelayDemo() {
           <span>→</span><Service name="一覧・通知" tech="Turso" />
         </div>
       </section>
+      <div className="pilot-home-share"><ShareButtons /></div>
       <footer><span>Relay / Systems Design 2026</span><span>Campus first. Community next.</span></footer>
     </main>
   );

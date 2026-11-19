@@ -7,6 +7,7 @@
 ## 実装済み
 
 - Campus Relayの発表用インタラクティブUI（PC・スマートフォン対応）
+- 招待した3人が出品から受け渡し完了までを実APIで試せる `/pilot`
 - 出品、応募、第一・予備候補選定、辞退、繰上げ、完了のドメインロジック
 - API Gateway、Community Auth、Listing、Matching、Read Model、Event Router、Notification Worker
 - Turso/libSQL用MigrationとTransactional Outbox
@@ -14,7 +15,7 @@
 - ドメインとイベント契約の自動テスト
 - Consumerのメッセージ単位ack/retry、Read ModelとListing投影の冪等化
 
-画面のデモ操作は発表時の再現性を優先したインメモリ・シミュレーションです。Workers側には同じユースケースを処理するAPI境界と永続化処理があります。本番認証、実メール送信、クラウドへのプロビジョニングは資格情報の設定後に行います。
+`/` では模擬デモを体験できます。ヘッダーの「招待コードで試す」を押すと `/pilot` が開きます。クラウド環境を準備すると、試験運用の出品・応募・受け渡しがTursoに保存されます。
 
 ## 開発
 
@@ -48,7 +49,7 @@ corepack pnpm --filter @relay/web cf-build
 
 ```text
 Browser -> Web Worker / Static Assets
-                 |  Service Binding（接続予定）
+                 |  Service Binding（API_GATEWAY）
                  v
            API Gateway Worker -> Community / Listing / Matching / Read Model
                  |                     |          |           |
@@ -65,7 +66,7 @@ Browser -> Web Worker / Static Assets
 ```
 
 ```text
-apps/web                 Next.js + OpenNext発表用UI
+apps/web                 Next.js + OpenNext（発表用デモと招待制の試験運用）
 packages/contracts       Zod API・イベント契約
 packages/domain          マッチングAggregateとSagaロジック
 packages/turso           libSQL接続・Outbox共通処理
@@ -91,6 +92,8 @@ relay-notification-dlq-dev
 ```
 
 最初の公開では、デモ画像をCloudflare Static Assetsから配信するため、R2バケットの作成は不要です。
+
+招待コードとセッションの準備は [招待セッションと受け渡し照会](docs/招待セッションと受け渡し照会.md) を参照してください。Gateway の `ALLOWED_ORIGINS` に Web の公開オリジンを設定し、Web はビルド時に `NEXT_PUBLIC_SITE_URL` で公開ページの URL を指定します。共有画像は `apps/web/public/og.png` に配置します。
 
 ## ライセンス
 

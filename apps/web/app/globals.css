@@ -124,3 +124,121 @@ footer { max-width: 1180px; margin: auto; padding: 22px 0 35px; display: flex; j
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+.pilot-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 10px 15px;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  background: var(--green);
+  color: var(--surface);
+  font-size: .875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.pilot-button:hover { background: var(--green-dark); border-color: var(--green-dark); }
+.pilot-button.pilot-secondary { color: var(--green-dark); background: var(--surface); }
+.pilot-button.pilot-secondary:hover { background: var(--mint); }
+.pilot-button:disabled { opacity: .55; cursor: default; }
+.pilot-button:focus-visible, .pilot-page :is(input, select, textarea):focus-visible, .pilot-action-card h2:focus-visible {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 3px;
+}
+.pilot-main-action { width: 100%; }
+.pilot-account-actions { gap: clamp(6px, 2vw, 15px); }
+.pilot-account { display: inline-flex; white-space: nowrap; }
+.pilot-page-title {
+  max-width: 1180px;
+  margin: 32px auto 18px;
+  padding-inline: 4px;
+  font: 600 clamp(1.625rem, 3vw, 2.375rem)/1.3 Georgia, "Yu Mincho", serif;
+}
+.pilot-workspace { margin-bottom: 52px; }
+.pilot-workspace:not(.pilot-single) { grid-template-areas: "listing primary" "listing tracking"; grid-template-rows: auto 1fr; }
+.pilot-workspace.pilot-single { grid-template-columns: minmax(0, 1fr); width: min(560px, calc(100% - 36px)); margin-inline: auto; }
+.pilot-primary { grid-area: primary; min-width: 0; }
+.pilot-single .pilot-primary { grid-area: auto; }
+.pilot-listing { grid-area: listing; overflow-wrap: anywhere; }
+.pilot-tracking { grid-area: tracking; padding-top: 0; overflow-wrap: anywhere; }
+.pilot-action-card { margin: 0 0 16px; padding: clamp(16px, 3vw, 24px); text-align: left; }
+.pilot-action-card h2, .pilot-tracking h2 { margin: 0; font-size: 1.125rem; line-height: 1.5; }
+.pilot-action-card h2 { font-size: clamp(1.25rem, 3vw, 1.5rem); scroll-margin-top: 94px; }
+.pilot-action-card .actor-label { margin-bottom: 5px; font-size: .75rem; }
+.pilot-action-card p, .pilot-tracking p { margin: 10px 0 0; color: var(--ink); font-size: .875rem; line-height: 1.6; }
+.pilot-action-card .pilot-form button { justify-content: center; font-size: .9375rem; }
+.pilot-action-card button:disabled:hover { transform: none; }
+.pilot-primary .pilot-feedback:not(:empty) {
+  margin-block: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--green);
+  border-radius: 3px;
+  background: var(--surface);
+}
+.pilot-feedback { overflow-wrap: anywhere; }
+.pilot-feedback:empty { margin: 0; }
+.pilot-form { display: grid; gap: 14px; margin-top: 14px; }
+.pilot-form p { margin: 0; }
+.pilot-field { display: grid; min-width: 0; gap: 6px; color: var(--ink); font-size: .875rem; font-weight: 700; }
+.pilot-field :is(input, textarea, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 9px 12px;
+  border: 1px solid var(--muted);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 1rem/1.45 "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+}
+.pilot-field textarea { resize: vertical; }
+.pilot-slots { min-width: 0; margin: 0; padding: 4px 10px; border: 1px solid var(--muted); border-radius: 7px; font-size: .875rem; }
+.pilot-slots legend { font-weight: 700; }
+.pilot-check { display: flex; min-height: 48px; align-items: center; gap: 9px; line-height: 1.4; cursor: pointer; }
+.pilot-check input { width: 18px; height: 18px; flex: none; accent-color: var(--green); }
+.pilot-listing-picker { padding: 16px 22px; }
+.pilot-listing-body .description { white-space: pre-wrap; }
+.pilot-listing-body .facts { margin-bottom: 0; }
+.pilot-listing-body .facts div, .pilot-applicants .facts div { grid-template-columns: 6em minmax(0, 1fr); gap: 8px; font-size: .875rem; }
+.pilot-listing-body ul, .pilot-applicants dd ul { margin: 0; padding: 0; list-style: none; }
+.pilot-applicants { display: grid; gap: 10px; margin: 14px 0; padding: 0; list-style: none; }
+.pilot-applicants > li { padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); overflow-wrap: anywhere; }
+.pilot-applicants h3 { margin: 0; font-size: 1rem; }
+.pilot-applicants .facts { margin: 5px 0 0; border: 0; }
+.pilot-applicants .facts div { padding: 5px 0; }
+.pilot-applicants .facts div:last-child { border: 0; }
+.pilot-applicants dd { white-space: pre-wrap; }
+.pilot-tracking .progress-list li { opacity: 1; }
+.pilot-tracking .progress-list strong { font-size: .875rem; }
+.pilot-tracking .progress-list small { font-size: .8125rem; }
+.pilot-events { margin: 8px 0 0; padding-left: 1.35em; font-size: .875rem; }
+.pilot-events li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.pilot-events time { display: block; margin-top: 3px; color: var(--muted); font-size: .8125rem; }
+.pilot-home-share { max-width: 1180px; margin: -50px auto 22px; }
+.pilot-share { margin-top: 14px; }
+.pilot-share-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pilot-action-card .pilot-share-actions > * { flex: 1 1 9rem; width: auto; }
+.pilot-share p { margin-block: 8px 0; }
+.pilot-share .pilot-share-note { color: var(--muted); font-size: .8125rem; line-height: 1.55; }
+.pilot-share .pilot-field { margin-top: 8px; }
+
+@media (max-width: 1216px) {
+  .pilot-workspace:not(.pilot-single), .pilot-page-title, .pilot-home-share { margin-inline: 18px; }
+}
+@media (max-width: 900px) {
+  .pilot-workspace:not(.pilot-single) { grid-template-areas: "primary" "listing" "tracking"; grid-template-rows: auto; }
+  .pilot-tracking { padding-top: 24px; }
+}
+@media (max-width: 600px) {
+  .pilot-page-title { margin-top: 20px; padding-inline: 0; }
+  .pilot-primary { padding: 16px; }
+  .pilot-entry { padding-inline: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pilot-action-card button:hover { transform: none; }
+}

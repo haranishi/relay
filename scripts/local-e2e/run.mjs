@@ -782,6 +782,9 @@ async function boot() {
   await assertPortsFree();
   await resetState();
   const sqld = path.join(process.env.HOME, ".turso", "sqld");
+  await access(sqld).catch(() => {
+    throw new Error("~/.turso/sqld がありません。sqld（libSQL のサーバー）を、tursodatabase/libsql のリリースから入手して置いてください（scripts/local-e2e/README.md を参照）。");
+  });
   for (const database of DATABASES) {
     const started = startLogged(`sqld-${database.name}`, sqld, [
       "--db-path", path.join(RUNTIME, database.name),

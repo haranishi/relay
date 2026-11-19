@@ -19,5 +19,6 @@ it("初期 HTML にはコピーと共有の案内があり、端末の共有ボ�
   expect(html).toContain(">リンクをコピー</button>");
   expect(html).toContain('aria-live="polite"');
   expect(html).toContain("Instagram");
+  expect(html).toContain('「<span class="pilot-nowrap">リンクをコピー</span>」か「<span class="pilot-nowrap">端末の共有</span>」');
   expect(html).not.toContain(">端末の共有</button>");
 });

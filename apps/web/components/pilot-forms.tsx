@@ -1,7 +1,9 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { pilotApi, PilotApiError, type Application, type Listing, type TransportMode } from "../lib/pilot-api";
-import { formatPickupSlot, participantName, transportLabels } from "../lib/pilot-copy";
-import { listingTemplate, selectionAttempt, type SelectionAttempt } from "./pilot-view";
+import { participantName, transportLabels } from "../lib/pilot-copy";
+import { PickupSlotText } from "./pickup-slot-text";
+import { chooseApplication, listingTemplate, maxBackupChoices, selectionAttempt, selectionFromChoices,
+  type ApplicationChoice, type ApplicationChoices, type SelectionAttempt } from "./pilot-view";
 
 export type RunPilotAction = (action: () => Promise<string | void>) => Promise<void>;
 
@@ -75,7 +77,7 @@ export function ApplyForm({ listing, busy, runAction, onNotice }: FormProps & {
         {listing.pickupSlots.map((slot, index) => (
           <label className="pilot-check" key={slot.startAt + slot.endAt}>
             <input type="checkbox" name="slot" value={index} />
-            {formatPickupSlot(slot)}
+            <PickupSlotText slot={slot} />
           </label>
         ))}
       </fieldset>
@@ -99,23 +101,34 @@ export function ApplyForm({ listing, busy, runAction, onNotice }: FormProps & {
   );
 }
 
+const choiceOptions = [
+  ["primary", "第一候補"], ["backup", "予備候補"], ["none", "選ばない"]
+] as const;
+
 export function SelectRecipientsForm({ applications, listingId, busy, runAction }: FormProps & {
   applications: Application[];
   listingId: string;
 }) {
-  const [primary, setPrimary] = useState("");
-  const [firstBackup, setFirstBackup] = useState("");
-  const [secondBackup, setSecondBackup] = useState("");
+  const [choices, setChoices] = useState<ApplicationChoices>(() => new Map());
   const attempt = useRef<SelectionAttempt | null>(null);
-  const options = applications.map((item) => ({ id: item.id, name: participantName(item.applicantId) }));
+  const primaryHintId = useId();
+  const applicationIds = new Set(applications.map(({ id }) => id));
+  const { primary, backups } = selectionFromChoices(choices, applications);
+  const backupNames = backups.map(({ applicantId }) => participantName(applicantId)).join("、");
+
+  function updateChoice(applicationId: string, choice: ApplicationChoice) {
+    setChoices((current) => {
+      const visible = new Map([...current].filter(([id]) => applicationIds.has(id)));
+      return chooseApplication(visible, applicationId, choice);
+    });
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const validIds = new Set(options.map((option) => option.id));
-    if (!validIds.has(primary)) return;
-    const backups = [firstBackup, secondBackup].filter((id) => validIds.has(id));
+    if (busy || !primary) return;
     void runAction(async () => {
-      const selection = selectionAttempt(primary, backups, attempt.current, Date.now(), () => crypto.randomUUID());
+      const backupIds = backups.map(({ id }) => id);
+      const selection = selectionAttempt(primary.id, backupIds, attempt.current, Date.now(), () => crypto.randomUUID());
       attempt.current = selection;
       try {
         await pilotApi.select(listingId, selection.input, selection.key);
@@ -129,51 +142,45 @@ export function SelectRecipientsForm({ applications, listingId, busy, runAction 
   }
 
   return (
-    <>
+    <form className="pilot-form" onSubmit={submit}>
+      <p>予備候補は2人までです。予備候補は応募が早い順に繰り上がります。承諾の期限は確定から24時間後です。</p>
       <ul className="pilot-applicants">
-        {applications.map((item) => (
-          <li key={item.id}>
-            <h3>{participantName(item.applicantId)}</h3>
-            <dl className="facts">
-              <div><dt>搬出手段</dt><dd>{transportLabels[item.transportMode]}</dd></div>
-              <div><dt>手伝いの人数</dt><dd>{item.helperCount}人</dd></div>
-              <div><dt>メッセージ</dt><dd>{item.message || "なし"}</dd></div>
-              <div><dt>希望時間</dt><dd><ul>{item.availableSlots.map((slot) =>
-                <li key={slot.startAt + slot.endAt}>{formatPickupSlot(slot)}</li>
-              )}</ul></dd></div>
-            </dl>
-          </li>
-        ))}
+        {applications.map((item) => {
+          const name = participantName(item.applicantId);
+          const choice = choices.get(item.id) ?? "none";
+          return (
+            <li key={item.id} className={choice === "none" ? undefined : "pilot-applicant-chosen"}>
+              <div className="pilot-applicant-heading">
+                <h3>{name}</h3>
+                {choice !== "none" && <span className="pilot-choice-badge">{choice === "primary" ? "第一候補" : "予備候補"}</span>}
+              </div>
+              <dl className="facts">
+                <div><dt>搬出手段</dt><dd>{transportLabels[item.transportMode]}</dd></div>
+                <div><dt>手伝いの人数</dt><dd>{item.helperCount}人</dd></div>
+                <div><dt>メッセージ</dt><dd>{item.message || "なし"}</dd></div>
+                <div><dt>希望時間</dt><dd><ul>{item.availableSlots.map((slot) =>
+                  <li key={slot.startAt + slot.endAt}><PickupSlotText slot={slot} /></li>
+                )}</ul></dd></div>
+              </dl>
+              <fieldset className="pilot-choices" disabled={busy}>
+                <legend className="pilot-visually-hidden">{name}の扱い</legend>
+                <div className="pilot-choice-list">
+                  {choiceOptions.map(([option, label]) => <label className="pilot-choice" key={option}>
+                    <input type="radio" name={`recipient-${item.id}`} value={option} checked={choice === option}
+                      disabled={option === "backup" && choice !== "backup" && backups.length >= maxBackupChoices}
+                      onChange={() => updateChoice(item.id, option)} />
+                    <span>{label}</span>
+                  </label>)}
+                </div>
+              </fieldset>
+            </li>
+          );
+        })}
       </ul>
-      <form className="pilot-form" onSubmit={submit}>
-        <p>第一候補を1人選んでください。予備候補は順に2人まで選べます。承諾の期限は確定から24時間後です。</p>
-        <label className="pilot-field">第一候補
-          <select value={primary} required onChange={(event) => {
-            const id = event.currentTarget.value;
-            setPrimary(id);
-            if (firstBackup === id) setFirstBackup("");
-            if (secondBackup === id) setSecondBackup("");
-          }}>
-            <option value="" disabled>選んでください</option>
-            {options.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
-          </select>
-        </label>
-        {options.length > 1 && <label className="pilot-field">予備候補 1（任意）
-          <select value={firstBackup} onChange={(event) => setFirstBackup(event.currentTarget.value)}>
-            <option value="">選ばない</option>
-            {options.filter(({ id }) => id !== primary && id !== secondBackup)
-              .map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
-          </select>
-        </label>}
-        {options.length > 2 && <label className="pilot-field">予備候補 2（任意）
-          <select value={secondBackup} onChange={(event) => setSecondBackup(event.currentTarget.value)}>
-            <option value="">選ばない</option>
-            {options.filter(({ id }) => id !== primary && id !== firstBackup)
-              .map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
-          </select>
-        </label>}
-        <button className="pilot-button pilot-main-action" type="submit" disabled={busy}>候補を確定する</button>
-      </form>
-    </>
+      {!primary && <p id={primaryHintId}>第一候補を1人選ぶと、候補を確定できます。</p>}
+      <p aria-live="polite">第一候補：{primary ? participantName(primary.applicantId) : "未選択"}／予備：{backupNames || "なし"}</p>
+      <button className="pilot-button pilot-main-action" type="submit" disabled={busy || !primary}
+        aria-describedby={primary ? undefined : primaryHintId}>候補を確定する</button>
+    </form>
   );
 }

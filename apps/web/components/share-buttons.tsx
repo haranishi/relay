@@ -69,7 +69,7 @@ export function ShareButtons() {
           }} onFocus={(event) => event.currentTarget.select()} />
         </label>
       )}
-      <p className="pilot-share-note">Instagram などは、「リンクをコピー」か「端末の共有」から送ってください（Web から投稿画面を開く公式の仕組みがないため）。</p>
+      <p className="pilot-share-note">Instagram などは、「<span className="pilot-nowrap">リンクをコピー</span>」か「<span className="pilot-nowrap">端末の共有</span>」から送ってください（Web から投稿画面を開く公式の仕組みがないため）。</p>
     </section>
   );
 }

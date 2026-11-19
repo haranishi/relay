@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { pilotApi, PilotApiError, type Listing, type ListingStatus, type PilotUser } from "../lib/pilot-api";
-import { formatPickupSlot, formatPilotDate, listingStatusLabels, participantName, pilotErrorMessage, sessionExpiredMessage } from "../lib/pilot-copy";
+import { formatPilotDate, listingStatusLabels, participantName, pilotErrorMessage, sessionExpiredMessage } from "../lib/pilot-copy";
+import { PickupSlotText } from "./pickup-slot-text";
 import { ApplyForm, CreateListingForm, SelectRecipientsForm, type RunPilotAction } from "./pilot-forms";
 import { buildPilotView } from "./pilot-view";
 import { ShareButtons } from "./share-buttons";
@@ -82,6 +83,7 @@ export function PilotApp() {
           <div className="flow-panel pilot-primary">
             <PrimaryCard title={user === undefined ? "ログインを確認しています" : cardTitle(invite)} notice={notice}>
               {user === null && <form className="pilot-form" onSubmit={login}>
+                <p>Relay の試験運用です。招待された方だけが入れます。招待コードは、案内してくれた人に聞いてください。</p>
                 <label className="pilot-field">招待コード
                   <input name="code" type="password" autoComplete="off" autoCapitalize="off" spellCheck={false} required />
                 </label>
@@ -209,9 +211,10 @@ function PilotWorkspace({ user, sessionNotice, onSessionExpired }: {
           <CardContents key={cardKey} card={card} listing={data.listing} busy={busy || updating}
             runAction={runAction} onNotice={setActionNotice} />
         </PrimaryCard>
-        <button className="pilot-button pilot-secondary pilot-main-action" type="button" disabled={busy || updating} onClick={() => void updateNow()}>
+        {data.matching?.listingStatus !== "COMPLETED" && <button className="pilot-button pilot-secondary pilot-main-action" type="button"
+          disabled={busy || updating} onClick={() => void updateNow()}>
           {updating ? "更新中…" : "いま更新する"}
-        </button>
+        </button>}
       </div>
       {data.listing && view.listingStatus && (
         <article className="listing-panel pilot-listing">
@@ -242,13 +245,16 @@ function CardContents({ card, listing, busy, runAction, onNotice }: {
     case "create":
       return <CreateListingForm busy={busy} runAction={runAction} />;
     case "apply":
-      return listing && <ApplyForm listing={listing} busy={busy} runAction={runAction} onNotice={onNotice} />;
+      return listing && <>
+        <p className="pilot-application-target">対象：{listing.title}（{listing.pickupArea}）</p>
+        <ApplyForm listing={listing} busy={busy} runAction={runAction} onNotice={onNotice} />
+      </>;
     case "select":
       return listing && <SelectRecipientsForm listingId={listing.id} applications={card.applications} busy={busy} runAction={runAction} />;
     case "receive": {
       const { id, confirmationExpiresAt } = card.handoff;
       return <div className="pilot-form">
-        <p>承諾期限は <time dateTime={confirmationExpiresAt}>{formatPilotDate(confirmationExpiresAt)}</time>（日本時間）です。</p>
+        <ConfirmationDeadline expiresAt={confirmationExpiresAt} />
         <button className="pilot-button pilot-main-action" type="button" disabled={busy}
           onClick={() => void runAction(() => pilotApi.complete(id))}>受け取りを確定する</button>
         <button className="pilot-button pilot-secondary pilot-main-action" type="button" disabled={busy} onClick={() => {
@@ -257,9 +263,7 @@ function CardContents({ card, listing, busy, runAction, onNotice }: {
       </div>;
     }
     case "wait-confirmation":
-      return card.handoff && <p>承諾期限は <time dateTime={card.handoff.confirmationExpiresAt}>
-        {formatPilotDate(card.handoff.confirmationExpiresAt)}
-      </time>（日本時間）です。</p>;
+      return card.handoff && <ConfirmationDeadline expiresAt={card.handoff.confirmationExpiresAt} />;
     case "wait-selection":
     case "wait-applications":
     case "no-listing":
@@ -274,6 +278,10 @@ function CardContents({ card, listing, busy, runAction, onNotice }: {
   }
 }
 
+function ConfirmationDeadline({ expiresAt }: { expiresAt: string }) {
+  return <p>承諾期限は <time dateTime={expiresAt}>{formatPilotDate(expiresAt)}</time><span className="pilot-nowrap">（日本時間）</span>です。</p>;
+}
+
 function ListingDetails({ listing, status }: { listing: Listing; status: ListingStatus }) {
   const { dimensionsCm, floor, hasElevator, helpersRequired } = listing.logistics;
   const logistics = [
@@ -283,6 +291,7 @@ function ListingDetails({ listing, status }: { listing: Listing; status: Listing
   ].filter(Boolean).join(" / ");
   const category = new Map([["furniture", "家具"], ["daily_goods", "日用品"], ["books", "本"], ["other", "その他"]]).get(listing.category);
   const condition = new Map([["like_new", "新品に近い"], ["used_good", "状態良好"], ["used_visible_wear", "使用感あり"]]).get(listing.condition);
+  const deadlineClass = status === "OPEN" || status === "RESERVED" ? "pickup-deadline-active" : undefined;
 
   return (
     <>
@@ -297,9 +306,9 @@ function ListingDetails({ listing, status }: { listing: Listing; status: Listing
         <dl className="facts">
           <div><dt>受取場所</dt><dd>{listing.pickupArea}</dd></div>
           <div><dt>受取時間</dt><dd><ul>{listing.pickupSlots.map((slot) =>
-            <li key={slot.startAt + slot.endAt}>{formatPickupSlot(slot)}</li>
+            <li key={slot.startAt + slot.endAt}><PickupSlotText slot={slot} /></li>
           )}</ul></dd></div>
-          <div><dt>受取期限</dt><dd><strong><time dateTime={listing.pickupDeadline}>{formatPilotDate(listing.pickupDeadline)}</time>まで</strong></dd></div>
+          <div><dt>受取期限</dt><dd><strong className={deadlineClass}><time dateTime={listing.pickupDeadline}>{formatPilotDate(listing.pickupDeadline)}</time>まで</strong></dd></div>
           {dimensionsCm && <div><dt>サイズ</dt><dd>幅{dimensionsCm.width} × 奥行{dimensionsCm.depth} × 高さ{dimensionsCm.height}cm</dd></div>}
           {logistics && <div><dt>搬出条件</dt><dd>{logistics}</dd></div>}
         </dl>
@@ -309,13 +318,14 @@ function ListingDetails({ listing, status }: { listing: Listing; status: Listing
 }
 
 function PilotProgress({ progress, events }: Pick<PilotView, "progress" | "events">) {
+  const marks = { done: "✓", active: "→", idle: "○", skipped: "—" };
   return (
     <div className="flow-panel pilot-tracking">
       <h2>受け渡しの進み具合</h2>
       <ol className="progress-list">
         {progress.map(({ label, state, detail }) => <li key={label} className={`progress-${state}`}
           aria-current={state === "active" ? "step" : undefined}>
-          <span aria-hidden="true" className="progress-mark">{state === "done" ? "✓" : state === "active" ? "→" : "○"}</span>
+          <span aria-hidden="true" className="progress-mark">{marks[state]}</span>
           <div><strong>{label}</strong><small>{detail}</small></div>
         </li>)}
       </ol>

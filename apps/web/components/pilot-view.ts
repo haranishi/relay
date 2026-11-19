@@ -10,7 +10,7 @@ type PilotCard =
   | { kind: "receive"; handoff: Handoff };
 
 export type PilotReadPhase = "loading" | "error" | "ready" | "reflecting" | "reflection-paused";
-type ProgressStep = { label: string; state: "done" | "active" | "idle"; detail: string };
+type ProgressStep = { label: string; state: "done" | "active" | "idle" | "skipped"; detail: string };
 type PilotEvent = { id: string; label: string; date?: string };
 
 function primaryCard(
@@ -68,7 +68,7 @@ function progressSteps(status: MatchingView["listingStatus"], applications: Appl
     { label: "応募", state: hasApplication ? "done" : "active", detail: hasApplication ? "応募あり" : "応募待ち" },
     { label: "選定", state: reopened ? "active" : selected ? "done" : hasApplication ? "active" : "idle",
       detail: reopened ? "再選定待ち" : selected ? "選定済み" : "選定待ち" },
-    { label: "辞退・繰り上げ", state: declined ? "done" : "idle",
+    { label: "辞退・繰り上げ", state: declined ? "done" : finished ? "skipped" : "idle",
       // 受取人には、ほかの人の辞退は見えない。完了したあとは、自分の分に辞退が無かったことだけを伝える。
       detail: declined ? "辞退あり" : finished ? (owner ? "辞退はありませんでした" : "あなたの分では、ありませんでした") : "必要に応じて次の候補へ" },
     { label: "完了", state: finished ? "done" : status === "RESERVED" ? "active" : "idle",
@@ -149,6 +149,34 @@ export function listingTemplate(openedAt: Date): ListingInput {
 }
 
 export type SelectionAttempt = { key: string; input: SelectionInput };
+
+export type ApplicationChoice = "primary" | "backup" | "none";
+export type ApplicationChoices = ReadonlyMap<string, Exclude<ApplicationChoice, "none">>;
+export const maxBackupChoices = 2;
+
+export function chooseApplication(choices: ApplicationChoices, applicationId: string, choice: ApplicationChoice): ApplicationChoices {
+  if ((choices.get(applicationId) ?? "none") === choice) return choices;
+  if (choice === "backup" && [...choices.values()].filter((value) => value === "backup").length >= maxBackupChoices) {
+    return choices;
+  }
+
+  const next = new Map(choices);
+  if (choice === "primary") {
+    const previous = [...choices].find(([, value]) => value === "primary");
+    if (previous) next.delete(previous[0]);
+  }
+  if (choice === "none") next.delete(applicationId);
+  else next.set(applicationId, choice);
+  return next;
+}
+
+export function selectionFromChoices(choices: ApplicationChoices, applications: readonly Application[]) {
+  return {
+    primary: applications.find(({ id }) => choices.get(id) === "primary"),
+    // 照会で返る応募順を保つと、画面の並びと繰り上げの順がそろう。
+    backups: applications.filter(({ id }) => choices.get(id) === "backup")
+  };
+}
 
 export function selectionAttempt(
   selectedApplicationId: string,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Application, Handoff, Listing, MatchingView, PilotUser } from "../lib/pilot-api";
-import { buildPilotView, listingTemplate, selectionAttempt, type PilotReadPhase } from "./pilot-view";
+import { buildPilotView, chooseApplication, listingTemplate, selectionAttempt, selectionFromChoices, type PilotReadPhase } from "./pilot-view";
 
 const giver = { id: "giver", displayName: "出品者" };
 const alice = { id: "receiver-a", displayName: "受取人A" };
@@ -119,6 +119,39 @@ it("ひな形は日本の暦日を基準に翌日、翌々日、3日後を設定
   expect(template.pickupDeadline).toBe("2027-01-04T18:00:00+09:00");
 });
 
+describe("応募者カードでの選定", () => {
+  const second = { ...application, id: "application-b", applicantId: bob.id, createdAt: "2026-11-19T11:00:00Z" };
+  const third = { ...application, id: "application-c", applicantId: "receiver-c", createdAt: "2026-11-19T12:00:00Z" };
+  const fourth = { ...application, id: "application-d", applicantId: "receiver-d", createdAt: "2026-11-19T13:00:00Z" };
+  const applicants = [application, second, third, fourth];
+
+  it("別の人を第一候補にすると、前の第一候補は選ばないに戻る", () => {
+    const first = chooseApplication(new Map(), application.id, "primary");
+    const changed = chooseApplication(first, second.id, "primary");
+    expect(changed.has(application.id)).toBe(false);
+    expect(selectionFromChoices(changed, applicants)).toEqual({ primary: second, backups: [] });
+    expect(selectionFromChoices(first, applicants).primary).toBe(application);
+    expect(selectionFromChoices(chooseApplication(changed, second.id, "none"), applicants).primary).toBeUndefined();
+  });
+
+  it("予備は2人までで、選んだ順にかかわらず応募順で確定する", () => {
+    const first = chooseApplication(new Map(), third.id, "backup");
+    const full = chooseApplication(first, second.id, "backup");
+    expect(chooseApplication(full, fourth.id, "backup")).toBe(full);
+    expect(selectionFromChoices(full, applicants).backups).toEqual([second, third]);
+
+    const promoted = chooseApplication(full, second.id, "primary");
+    const replaced = chooseApplication(promoted, fourth.id, "backup");
+    expect(selectionFromChoices(replaced, applicants)).toEqual({ primary: second, backups: [third, fourth] });
+  });
+
+  it("更新でカードから消えた応募は確定に含めない", () => {
+    const first = chooseApplication(new Map(), application.id, "primary");
+    const choices = chooseApplication(first, second.id, "backup");
+    expect(selectionFromChoices(choices, [third])).toEqual({ primary: undefined, backups: [] });
+  });
+});
+
 it("同じ選定を再試行するとキーと期限を保ち、別の候補を選ぶと新しく発行する", () => {
   const now = Date.parse("2026-11-19T09:00:00Z");
   const newKey = vi.fn().mockReturnValueOnce("dummy-first-key").mockReturnValueOnce("dummy-second-key");
@@ -137,14 +170,23 @@ describe("進み具合の『辞退・繰り上げ』", () => {
     const withDecline = buildPilotView(giver, listing, { ...withdrawn, viewerRole: "giver" });
     expect(step(withDecline)).toMatchObject({ state: "done", detail: "辞退あり" });
     const noDecline = buildPilotView(giver, listing, { ...completed, viewerRole: "giver" });
-    expect(step(noDecline)).toMatchObject({ state: "idle", detail: "辞退はありませんでした" });
+    expect(step(noDecline)).toMatchObject({ state: "skipped", detail: "辞退はありませんでした" });
   });
 
   it("受取人は、ほかの人の辞退が見えないので、完了後は自分の分だけを伝える", () => {
-    expect(step(buildPilotView(bob, listing, completed))).toMatchObject({
-      state: "idle", detail: "あなたの分では、ありませんでした"
+    const handoffs: Handoff[] = [
+      { ...proposal, status: "CANCELLED" },
+      { ...proposal, id: "handoff-b", applicationId: "application-b", receiverId: bob.id, status: "COMPLETED" }
+    ];
+    expect(step(buildPilotView(giver, listing, { ...completed, viewerRole: "giver", handoffs })))
+      .toMatchObject({ state: "done", detail: "辞退あり" });
+    expect(step(buildPilotView(bob, listing, { ...completed, handoffs }))).toMatchObject({
+      state: "skipped", detail: "あなたの分では、ありませんでした"
     });
-    expect(step(buildPilotView(bob, listing, { ...open, viewerRole: "applicant", applications: [] }))?.detail)
-      .toBe("必要に応じて次の候補へ");
+    expect(step(buildPilotView(bob, listing, completed))).toMatchObject({
+      state: "skipped", detail: "あなたの分では、ありませんでした"
+    });
+    expect(step(buildPilotView(bob, listing, { ...open, viewerRole: "applicant", applications: [] })))
+      .toMatchObject({ state: "idle", detail: "必要に応じて次の候補へ" });
   });
 });

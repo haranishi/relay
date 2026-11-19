@@ -16,8 +16,38 @@ const routes = [
 const forwardedHeaders = ["content-type", "idempotency-key", "cookie", "origin", "cf-connecting-ip", "accept"];
 const maxBodyBytes = 16 * 1024;
 
+const tooLarge = Symbol("too-large");
+
 function problem(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+// 本文を、実際に読んだ量で制限する。Content-Length が無い・偽りの分割送信でも、
+// 上限を超えた時点で読むのをやめる（全部をメモリに読み込んでから測らない）。
+async function readLimitedText(
+  stream: ReadableStream<Uint8Array>,
+  limit: number
+): Promise<string | typeof tooLarge | null> {
+  const reader = stream.getReader();
+  const bytes = new Uint8Array(limit);
+  let length = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      if (length + chunk.value.byteLength > limit) {
+        void reader.cancel().catch(() => {});
+        return tooLarge;
+      }
+      bytes.set(chunk.value, length);
+      length += chunk.value.byteLength;
+    }
+    return new TextDecoder().decode(bytes.subarray(0, length));
+  } catch {
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 async function relay(request: Request): Promise<Response> {
@@ -35,14 +65,10 @@ async function relay(request: Request): Promise<Response> {
     if (Number(request.headers.get("content-length")) > maxBodyBytes) {
       return problem(413, "body_too_large");
     }
-    try {
-      body = await request.text();
-    } catch {
-      return problem(400, "invalid_body");
-    }
-    if (body.length > maxBodyBytes || new TextEncoder().encode(body).byteLength > maxBodyBytes) {
-      return problem(413, "body_too_large");
-    }
+    const read = await readLimitedText(request.body, maxBodyBytes);
+    if (read === tooLarge) return problem(413, "body_too_large");
+    if (read === null) return problem(400, "invalid_body");
+    body = read;
   }
 
   const headers = new Headers();

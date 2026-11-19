@@ -110,6 +110,23 @@ describe("Web から Gateway への中継", () => {
     expect((await relay("POST", session, { body: "a".repeat(16 * 1024) })).status).toBe(204);
   });
 
+  it("大きさが分からない分割送信でも、上限を超えたら読むのをやめて 413 を返す", async () => {
+    let pulled = 0;
+    const chunk = new Uint8Array(4096).fill(97);
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(chunk);
+        if (pulled >= 100) controller.close();
+      }
+    });
+    const response = await relay("POST", session, { body, duplex: "half" } as RequestInit);
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(gatewayFetch).not.toHaveBeenCalled();
+    expect(pulled).toBeLessThan(10);
+  });
+
   it("中継が失敗したら内部の詳細を含めずに 502 を返す", async () => {
     gatewayFetch.mockRejectedValue(new Error("dummy internal detail"));
     const response = await relay("GET", session);

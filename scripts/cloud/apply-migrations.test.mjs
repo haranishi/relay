@@ -70,6 +70,40 @@ test("4つのDBの全移行を番号順に適用し、2回目は台帳もDBも�
   }
 });
 
+// リモート（Hrana）のトランザクションは execute(stmt) の1引数だけを受け取り、第2引数を黙って捨てる。
+// ローカルのファイル DB は execute(sql, args) も受け取るため、そのままでは、この取りこぼしを試験で検出できない。
+function remoteLike(client) {
+  return {
+    execute: (stmt) => client.execute(stmt),
+    async transaction(mode) {
+      const transaction = await client.transaction(mode);
+      return {
+        execute: (stmt) => transaction.execute(stmt),
+        executeMultiple: (sql) => transaction.executeMultiple(sql),
+        commit: () => transaction.commit(),
+        close: () => transaction.close()
+      };
+    },
+    close: () => client.close()
+  };
+}
+
+test("リモート接続と同じ1引数のトランザクションでも、台帳に file と applied_at を記録し、2回目は何もしない", async (t) => {
+  const dir = await workspace(t);
+  const { client, env } = database(t, dir, "remote-like");
+  const openClient = (options) => remoteLike(createClient(options));
+  const args = ["community", "--apply", "--demo-seed"];
+  const logs = [];
+  const log = (line) => logs.push(line);
+  await main(args, { env, log, openClient });
+  assert.deepEqual(logs.splice(0), ["0001_initial.sql 適用済み", "demo_seed.sql 適用済み"]);
+  const entries = await ledger(client);
+  assert.deepEqual(entries.map((row) => row.file), ["0001_initial.sql", "demo_seed.sql"]);
+  assert.ok(entries.every((row) => Number.isInteger(row.applied_at)));
+  await main(args, { env, log, openClient });
+  assert.deepEqual(logs, ["0001_initial.sql スキップ", "demo_seed.sql スキップ"]);
+});
+
 test("不正なSQLで途中の書き込みを取り消し、成功済みの台帳を残す", async (t) => {
   const root = await workspace(t);
   const directory = join(root, "listing");

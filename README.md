@@ -72,26 +72,15 @@ packages/domain          マッチングAggregateとSagaロジック
 packages/turso           libSQL接続・Outbox共通処理
 workers/*                Cloudflare Workers 7サービス
 db/*                     サービス別Turso Migration
+scripts/cloud/           クラウド用のDB移行、Secretの準備、配備後の確認
+scripts/local-e2e/       ローカル環境での通し確認
 ```
 
 ## Cloudflare/Tursoへ接続する前に
 
-1. `db/README.md` に従って4つのTurso DBへMigrationを適用する。
-2. 各DB利用Workerへ `TURSO_DATABASE_URL` と `TURSO_AUTH_TOKEN` をSecretとして設定する。
-3. 次のQueueとDLQを作成する。
+公開試験の準備と配備の順序は [クラウド配備手順](docs/クラウド配備手順.md) を参照してください。
 
-```text
-relay-domain-events-dev
-relay-listing-commands-dev
-relay-matching-commands-dev
-relay-read-model-commands-dev
-relay-notification-commands-dev
-relay-domain-events-dlq-dev
-relay-read-model-dlq-dev
-relay-notification-dlq-dev
-```
-
-最初の公開では、デモ画像をCloudflare Static Assetsから配信するため、R2バケットの作成は不要です。
+最初の公開では画像を扱わない（ソファの絵はCSSで描いている）ため、R2バケットの作成は不要です。
 
 招待コードとセッションの準備は [招待セッションと受け渡し照会](docs/招待セッションと受け渡し照会.md) を参照してください。Gateway の `ALLOWED_ORIGINS` に Web の公開オリジンを設定し、Web はビルド時に `NEXT_PUBLIC_SITE_URL` で公開ページの URL を指定します。共有画像は `apps/web/public/og.png` に配置します。
 

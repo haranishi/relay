@@ -10,7 +10,7 @@
 - 出品、応募、第一・予備候補選定、辞退、繰上げ、完了のドメインロジック
 - API Gateway、Community Auth、Listing、Matching、Read Model、Event Router、Notification Worker
 - Turso/libSQL用MigrationとTransactional Outbox
-- Cloudflare Service Bindings、Queues、R2のWrangler構成
+- Cloudflare Service Bindings、QueuesのWrangler構成
 - ドメインとイベント契約の自動テスト
 - Consumerのメッセージ単位ack/retry、Read ModelとListing投影の冪等化
 
@@ -47,9 +47,12 @@ corepack pnpm --filter @relay/web cf-build
 ## 構成
 
 ```text
-Browser -> API Gateway Worker -> Community / Listing / Matching / Read Model
+Browser -> Web Worker / Static Assets
+                 |  Service Binding（接続予定）
+                 v
+           API Gateway Worker -> Community / Listing / Matching / Read Model
                  |                     |          |           |
-          Service Bindings          Turso+R2    Turso       Turso
+          Service Bindings            Turso      Turso       Turso
                                          \        /
                                           Outbox
                                              |
@@ -74,7 +77,7 @@ db/*                     サービス別Turso Migration
 
 1. `db/README.md` に従って4つのTurso DBへMigrationを適用する。
 2. 各DB利用Workerへ `TURSO_DATABASE_URL` と `TURSO_AUTH_TOKEN` をSecretとして設定する。
-3. 次のQueueとDLQ、`relay-listing-images-dev` R2 bucketを作成する。
+3. 次のQueueとDLQを作成する。
 
 ```text
 relay-domain-events-dev
@@ -86,6 +89,8 @@ relay-domain-events-dlq-dev
 relay-read-model-dlq-dev
 relay-notification-dlq-dev
 ```
+
+最初の公開では、デモ画像をCloudflare Static Assetsから配信するため、R2バケットの作成は不要です。
 
 ## ライセンス
 

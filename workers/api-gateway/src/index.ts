@@ -4,19 +4,39 @@ import {
   encodeAuthContext,
   type AuthContext
 } from "@relay/contracts";
-import { Hono, type Context } from "hono";
+import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { checkOrigin, clearSession, createSession, readSession } from "./session.js";
 
 type Variables = { auth: AuthContext };
 type AppEnv = { Bindings: Env; Variables: Variables };
 
 const app = new Hono<AppEnv>();
 
-app.use("/api/v1/communities/:communityId/*", async (context, next) => {
-  const userId = context.req.header("x-relay-demo-user");
+const noStore: MiddlewareHandler<AppEnv> = async (context, next) => {
+  await next();
+  context.header("Cache-Control", "no-store");
+};
+
+app.use("/api/v1/session", noStore);
+app.post("/api/v1/session", createSession);
+app.get("/api/v1/session", async (context) => {
+  const session = await readSession(context);
+  if (!session) throw new HTTPException(401, { message: "Authentication is required" });
+  return context.json(session);
+});
+app.delete("/api/v1/session", clearSession);
+
+app.use("/api/v1/communities/:communityId/*", noStore, async (context, next) => {
+  const session = await readSession(context);
+  const demoUser = context.env.ALLOW_DEMO_AUTH === "true" ? context.req.header("x-relay-demo-user") : undefined;
+  const userId = session?.user.id ?? demoUser;
   const communityId = context.req.param("communityId");
-  if (context.env.ALLOW_DEMO_AUTH !== "true" || !userId || !communityId) {
+  if (!userId || !communityId) {
     throw new HTTPException(401, { message: "Authentication is required" });
+  }
+  if (session && !["GET", "HEAD", "OPTIONS"].includes(context.req.method)) {
+    checkOrigin(context.req.raw, context.env.ALLOWED_ORIGINS);
   }
 
   const verifyResponse = await context.env.COMMUNITY_SERVICE.fetch(
@@ -57,7 +77,7 @@ app.get("/api/v1/communities/:communityId/listings/:listingId", (context) =>
   proxy(
     context,
     context.env.LISTING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}`
   )
 );
 
@@ -65,7 +85,7 @@ app.post("/api/v1/communities/:communityId/listings/:listingId/applications", (c
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}/applications`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}/applications`
   )
 );
 
@@ -73,7 +93,15 @@ app.get("/api/v1/communities/:communityId/listings/:listingId/applications", (co
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}/applications`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}/applications`
+  )
+);
+
+app.get("/api/v1/communities/:communityId/listings/:listingId/matching", (context) =>
+  proxy(
+    context,
+    context.env.MATCHING_SERVICE,
+    "/internal/listings/" + encodeURIComponent(context.req.param("listingId")) + "/matching"
   )
 );
 
@@ -81,7 +109,7 @@ app.post("/api/v1/communities/:communityId/listings/:listingId/selection", (cont
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}/selection`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}/selection`
   )
 );
 
@@ -89,7 +117,7 @@ app.post("/api/v1/communities/:communityId/handoffs/:handoffId/cancel", (context
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/handoffs/${context.req.param("handoffId")}/cancel`
+    `/internal/handoffs/${encodeURIComponent(context.req.param("handoffId"))}/cancel`
   )
 );
 
@@ -97,7 +125,7 @@ app.post("/api/v1/communities/:communityId/handoffs/:handoffId/complete", (conte
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/handoffs/${context.req.param("handoffId")}/complete`
+    `/internal/handoffs/${encodeURIComponent(context.req.param("handoffId"))}/complete`
   )
 );
 
@@ -106,7 +134,7 @@ app.notFound(() => problem(404, "Not Found", "The route does not exist"));
 app.onError((error, context) => {
   const requestId = context.get("auth")?.requestId ?? crypto.randomUUID();
   const status = error instanceof HTTPException ? error.status : 500;
-  const detail = error instanceof HTTPException ? error.message : "An unexpected error occurred";
+  const detail = status !== 500 && error instanceof HTTPException ? error.message : "An unexpected error occurred";
   console.error(
     JSON.stringify({
       message: "gateway request failed",

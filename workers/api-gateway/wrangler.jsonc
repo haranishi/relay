@@ -8,7 +8,11 @@
   "preview_urls": false,
   "vars": {
     "ENVIRONMENT": "development",
-    "ALLOW_DEMO_AUTH": "true"
+    "ALLOW_DEMO_AUTH": "false",
+    "ALLOWED_ORIGINS": "http://127.0.0.1:8787,http://localhost:8787"
+  },
+  "secrets": {
+    "required": ["RELAY_SESSION_KEY", "RELAY_INVITE_GIVER", "RELAY_INVITE_A", "RELAY_INVITE_B"]
   },
   "services": [
     { "binding": "COMMUNITY_SERVICE", "service": "relay-community-auth" },

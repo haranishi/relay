@@ -12,7 +12,8 @@ import {
   expectString,
   outboxInsert,
   parseJsonColumn,
-  publishPendingOutbox
+  publishPendingOutbox,
+  redactError
 } from "@relay/turso";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -118,7 +119,7 @@ app.get("/internal/images/:key", (context) => context.json({ error: "image_stora
 
 app.onError((error, context) => {
   const status = error instanceof HTTPException ? error.status : 500;
-  console.error(JSON.stringify({ service: "listing", path: context.req.path, status, error: String(error) }));
+  console.error(JSON.stringify({ service: "listing", path: context.req.path, status, error: redactError(error, context.env) }));
   return context.json({ error: status === 500 ? "internal_error" : error.message }, status);
 });
 
@@ -184,7 +185,9 @@ export default {
     return app.fetch(request, env, ctx);
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(publishOutbox(env));
+    ctx.waitUntil(publishOutbox(env).catch((error: unknown) =>
+      console.error(JSON.stringify({ service: "listing", job: "outbox", error: redactError(error, env) }))
+    ));
   },
   async queue(batch: MessageBatch<DomainEvent>, env: Env) {
     for (const message of batch.messages) {
@@ -192,7 +195,7 @@ export default {
         await applyListingCommand(env, domainEventSchema.parse(message.body));
         message.ack();
       } catch (error) {
-        console.error(JSON.stringify({ service: "listing", messageId: message.id, error: String(error) }));
+        console.error(JSON.stringify({ service: "listing", messageId: message.id, error: redactError(error, env) }));
         message.retry({ delaySeconds: 10 });
       }
     }

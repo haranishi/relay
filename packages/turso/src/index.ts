@@ -13,6 +13,28 @@ export function createTursoClient(config: TursoConfig): Client {
   });
 }
 
+export function redactError(
+  error: unknown,
+  env: { TURSO_DATABASE_URL?: string; TURSO_AUTH_TOKEN?: string }
+): string {
+  const url = env.TURSO_DATABASE_URL;
+  let hostname = "";
+  if (url) {
+    try {
+      hostname = new URL(url).hostname;
+    } catch {
+      hostname = url.replace(/^[a-z][a-z\d+.-]*:\/\//i, "");
+    }
+  }
+
+  const secrets = [url, env.TURSO_AUTH_TOKEN, hostname]
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => b.length - a.length)
+    .map((value) => value.replace(/[.*+?^{}$()|[\]\\]/g, "\\$&"));
+  const message = String(error);
+  return (secrets.length ? message.replace(new RegExp(secrets.join("|"), "g"), "<REDACTED>") : message).slice(0, 500);
+}
+
 export function outboxInsert(event: DomainEvent): InStatement {
   return {
     sql: `

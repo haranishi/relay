@@ -90,6 +90,29 @@ export const cancelHandoffSchema = z.object({
   reason: z.enum(["declined", "expired", "giver_cancelled", "no_show"])
 });
 
+export const matchingViewSchema = z.object({
+  listingStatus: listingStatusSchema,
+  viewerRole: z.enum(["giver", "applicant", "none"]),
+  applications: z.array(z.object({
+    id: z.string().min(1),
+    applicantId: z.string().min(1),
+    message: z.string(),
+    availableSlots: z.array(pickupSlotSchema),
+    transportMode: createApplicationSchema.shape.transportMode,
+    helperCount: createApplicationSchema.shape.helperCount,
+    status: applicationStatusSchema,
+    createdAt: z.iso.datetime()
+  })),
+  handoffs: z.array(z.object({
+    id: z.string().min(1),
+    applicationId: z.string().min(1),
+    giverId: z.string().min(1),
+    receiverId: z.string().min(1),
+    status: handoffStatusSchema,
+    confirmationExpiresAt: z.iso.datetime()
+  }))
+});
+
 export const eventTypeSchema = z.enum([
   "ListingPublished.v1",
   "ApplicationSubmitted.v1",
@@ -123,6 +146,7 @@ export type CreateListingInput = z.infer<typeof createListingSchema>;
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type SelectRecipientsInput = z.infer<typeof selectRecipientsSchema>;
 export type CancelHandoffInput = z.infer<typeof cancelHandoffSchema>;
+export type MatchingView = z.infer<typeof matchingViewSchema>;
 export type DomainEvent = z.infer<typeof domainEventSchema>;
 
 export const INTERNAL_AUTH_HEADER = "x-relay-auth-context";

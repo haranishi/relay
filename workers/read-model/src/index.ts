@@ -5,7 +5,7 @@ import {
   type AuthContext,
   type DomainEvent
 } from "@relay/contracts";
-import { createTursoClient, expectNumber, expectString } from "@relay/turso";
+import { createTursoClient, expectNumber, expectString, redactError } from "@relay/turso";
 import type { InStatement } from "@libsql/client/web";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -128,7 +128,7 @@ export default {
   async queue(batch: MessageBatch<DomainEvent>, env: Env) {
     for (const message of batch.messages) {
       try { await projectEvent(env, domainEventSchema.parse(message.body)); message.ack(); }
-      catch (error) { console.error(JSON.stringify({ service: "read-model", messageId: message.id, error: String(error) })); message.retry({ delaySeconds: 10 }); }
+      catch (error) { console.error(JSON.stringify({ service: "read-model", messageId: message.id, error: redactError(error, env) })); message.retry({ delaySeconds: 10 }); }
     }
   }
 } satisfies ExportedHandler<Env, DomainEvent>;

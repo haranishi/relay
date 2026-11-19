@@ -4,6 +4,7 @@ import {
   createApplicationSchema,
   decodeAuthContext,
   domainEventSchema,
+  matchingViewSchema,
   selectRecipientsSchema,
   type ApplicationStatus,
   type AuthContext,
@@ -25,9 +26,10 @@ import {
   expectString,
   outboxInsert,
   parseJsonColumn,
-  publishPendingOutbox
+  publishPendingOutbox,
+  redactError
 } from "@relay/turso";
-import { LibsqlError, type Client, type InStatement } from "@libsql/client/web";
+import { LibsqlError, type Client, type InStatement, type Row } from "@libsql/client/web";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
@@ -120,18 +122,57 @@ app.get("/internal/listings/:listingId/applications", async (context) => {
       `,
       args: [state.listingId]
     });
-    return context.json(
-      result.rows.map((row) => ({
-        id: expectString(row.id, "id"),
-        applicantId: expectString(row.applicant_id, "applicant_id"),
-        message: expectString(row.message, "message"),
-        availableSlots: parseJsonColumn(row.available_slots_json, "available_slots_json"),
-        transportMode: expectString(row.transport_mode, "transport_mode"),
-        helperCount: expectNumber(row.helper_count, "helper_count"),
-        status: expectString(row.status, "status"),
-        createdAt: new Date(expectNumber(row.created_at, "created_at")).toISOString()
-      }))
-    );
+    return context.json(result.rows.map(applicationDetails));
+  } finally {
+    client.close();
+  }
+});
+
+app.get("/internal/listings/:listingId/matching", async (context) => {
+  const auth = context.get("auth");
+  const listingArgs = [context.req.param("listingId"), auth.communityId];
+  const viewerArgs = [...listingArgs, auth.userId, auth.userId];
+  const client = createTursoClient(context.env);
+  try {
+    // 辞退や繰り上げの前後が混ざらないよう、同じ時点の状態を読む。
+    const [listing, applications, handoffs] = await client.batch([
+      {
+        sql: "SELECT owner_id, status FROM listing_snapshots WHERE id = ? AND community_id = ?",
+        args: listingArgs
+      },
+      {
+        sql: `
+          SELECT a.id, a.applicant_id, a.message, a.available_slots_json, a.transport_mode,
+                 a.helper_count, a.status, a.created_at
+          FROM applications a
+          JOIN listing_snapshots l ON l.id = a.listing_id AND l.community_id = a.community_id
+          WHERE l.id = ? AND l.community_id = ? AND (l.owner_id = ? OR a.applicant_id = ?)
+          ORDER BY a.created_at, a.id
+        `,
+        args: viewerArgs
+      },
+      {
+        sql: `
+          SELECT h.id, h.application_id, h.giver_id, h.receiver_id, h.status, h.confirmation_expires_at
+          FROM handoffs h JOIN listing_snapshots l ON l.id = h.listing_id
+          WHERE l.id = ? AND l.community_id = ? AND (l.owner_id = ? OR h.receiver_id = ?)
+          ORDER BY h.created_at, h.id
+        `,
+        args: viewerArgs
+      }
+    ], "read");
+    if (!listing || !applications || !handoffs) throw new Error("Incomplete matching query");
+    const row = listing.rows[0];
+    if (!row) throw new HTTPException(404, { message: "Listing is not available in matching service" });
+    const viewerRole = expectString(row.owner_id, "owner_id") === auth.userId
+      ? "giver" : applications.rows.length ? "applicant" : "none";
+    const view = matchingViewSchema.parse({
+      listingStatus: row.status,
+      viewerRole,
+      applications: applications.rows.map(applicationDetails),
+      handoffs: viewerRole === "none" ? [] : handoffs.rows.map(handoffDetails)
+    });
+    return context.json(view, 200, { "Cache-Control": "no-store" });
   } finally {
     client.close();
   }
@@ -250,9 +291,34 @@ app.onError((error, context) => {
     return context.json({ error: "HANDOFF_NOT_ACTIVE" }, 409);
   }
   const status = error instanceof HTTPException ? error.status : error instanceof DomainError ? 409 : 500;
-  console.error(JSON.stringify({ service: "matching", path: context.req.path, status, error: String(error) }));
-  return context.json({ error: error instanceof DomainError ? error.code : "request_failed", detail: error.message }, status);
+  console.error(JSON.stringify({ service: "matching", path: context.req.path, status, error: redactError(error, context.env) }));
+  const detail = status === 500 ? "An unexpected error occurred" : error.message;
+  return context.json({ error: error instanceof DomainError ? error.code : "request_failed", detail }, status);
 });
+
+function applicationDetails(row: Row) {
+  return {
+    id: expectString(row.id, "id"),
+    applicantId: expectString(row.applicant_id, "applicant_id"),
+    message: expectString(row.message, "message"),
+    availableSlots: parseJsonColumn(row.available_slots_json, "available_slots_json"),
+    transportMode: expectString(row.transport_mode, "transport_mode"),
+    helperCount: expectNumber(row.helper_count, "helper_count"),
+    status: expectString(row.status, "status"),
+    createdAt: new Date(expectNumber(row.created_at, "created_at")).toISOString()
+  };
+}
+
+function handoffDetails(row: Row) {
+  return {
+    id: expectString(row.id, "handoff.id"),
+    applicationId: expectString(row.application_id, "handoff.application_id"),
+    giverId: expectString(row.giver_id, "handoff.giver_id"),
+    receiverId: expectString(row.receiver_id, "handoff.receiver_id"),
+    status: expectString(row.status, "handoff.status") as HandoffStatus,
+    confirmationExpiresAt: new Date(expectNumber(row.confirmation_expires_at, "confirmation_expires_at")).toISOString()
+  };
+}
 
 async function loadState(client: Client, listingId: string, communityId: string): Promise<MatchingState> {
   const [listing, applications, candidates, handoffs, idempotency] = await Promise.all([
@@ -281,13 +347,8 @@ async function loadState(client: Client, listingId: string, communityId: string)
       status: expectString(item.status, "candidate.status") as "waiting" | "offered" | "accepted" | "skipped"
     })),
     handoffs: handoffs.rows.map((item) => ({
-      id: expectString(item.id, "handoff.id"),
+      ...handoffDetails(item),
       listingId,
-      applicationId: expectString(item.application_id, "handoff.application_id"),
-      giverId: expectString(item.giver_id, "handoff.giver_id"),
-      receiverId: expectString(item.receiver_id, "handoff.receiver_id"),
-      status: expectString(item.status, "handoff.status") as HandoffStatus,
-      confirmationExpiresAt: new Date(expectNumber(item.confirmation_expires_at, "confirmation_expires_at")).toISOString(),
       eventVersion: expectNumber(item.version, "handoff.version")
     })),
     events: [],
@@ -326,11 +387,15 @@ async function projectListing(env: Env, event: DomainEvent): Promise<void> {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> { return app.fetch(request, env, ctx); },
-  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) { ctx.waitUntil(publishOutbox(env)); },
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(publishOutbox(env).catch((error: unknown) =>
+      console.error(JSON.stringify({ service: "matching", job: "outbox", error: redactError(error, env) }))
+    ));
+  },
   async queue(batch: MessageBatch<DomainEvent>, env: Env) {
     for (const message of batch.messages) {
       try { await projectListing(env, domainEventSchema.parse(message.body)); message.ack(); }
-      catch (error) { console.error(JSON.stringify({ service: "matching", messageId: message.id, error: String(error) })); message.retry({ delaySeconds: 10 }); }
+      catch (error) { console.error(JSON.stringify({ service: "matching", messageId: message.id, error: redactError(error, env) })); message.retry({ delaySeconds: 10 }); }
     }
   }
 } satisfies ExportedHandler<Env, DomainEvent>;

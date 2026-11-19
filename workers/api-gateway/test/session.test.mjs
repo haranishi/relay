@@ -186,3 +186,22 @@ it("checks Origin for login, logout, and cookie-authenticated writes", async () 
   expect(logout.headers.get("Cache-Control")).toBe("no-store");
   expect(logout.headers.get("Set-Cookie")).toBe("relay_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax");
 });
+
+it("encodes listing and handoff IDs so they cannot change the internal path", async () => {
+  const { fetch, login, matching } = setup();
+  const cookie = sessionCookie(await login());
+  const traversal = "..%2F..%2Fhandoffs%2Fother";
+
+  const applications = await fetch(listingPath + "/" + traversal + "/applications", { headers: { Cookie: cookie } });
+  expect(applications.status).toBe(200);
+  expect(new URL(matching.mock.calls[0][0].url).pathname)
+    .toBe("/internal/listings/" + traversal + "/applications");
+
+  const cancel = await fetch(
+    "/api/v1/communities/community-campus-demo/handoffs/" + traversal + "/cancel",
+    { method: "POST", headers: { Cookie: cookie } }
+  );
+  expect(cancel.status).toBe(200);
+  expect(new URL(matching.mock.calls[1][0].url).pathname)
+    .toBe("/internal/handoffs/" + traversal + "/cancel");
+});

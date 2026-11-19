@@ -77,7 +77,7 @@ app.get("/api/v1/communities/:communityId/listings/:listingId", (context) =>
   proxy(
     context,
     context.env.LISTING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}`
   )
 );
 
@@ -85,7 +85,7 @@ app.post("/api/v1/communities/:communityId/listings/:listingId/applications", (c
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}/applications`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}/applications`
   )
 );
 
@@ -93,7 +93,7 @@ app.get("/api/v1/communities/:communityId/listings/:listingId/applications", (co
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}/applications`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}/applications`
   )
 );
 
@@ -109,7 +109,7 @@ app.post("/api/v1/communities/:communityId/listings/:listingId/selection", (cont
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/listings/${context.req.param("listingId")}/selection`
+    `/internal/listings/${encodeURIComponent(context.req.param("listingId"))}/selection`
   )
 );
 
@@ -117,7 +117,7 @@ app.post("/api/v1/communities/:communityId/handoffs/:handoffId/cancel", (context
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/handoffs/${context.req.param("handoffId")}/cancel`
+    `/internal/handoffs/${encodeURIComponent(context.req.param("handoffId"))}/cancel`
   )
 );
 
@@ -125,7 +125,7 @@ app.post("/api/v1/communities/:communityId/handoffs/:handoffId/complete", (conte
   proxy(
     context,
     context.env.MATCHING_SERVICE,
-    `/internal/handoffs/${context.req.param("handoffId")}/complete`
+    `/internal/handoffs/${encodeURIComponent(context.req.param("handoffId"))}/complete`
   )
 );
 

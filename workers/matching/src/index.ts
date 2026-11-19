@@ -26,7 +26,8 @@ import {
   expectString,
   outboxInsert,
   parseJsonColumn,
-  publishPendingOutbox
+  publishPendingOutbox,
+  redactError
 } from "@relay/turso";
 import { LibsqlError, type Client, type InStatement, type Row } from "@libsql/client/web";
 import { Hono } from "hono";
@@ -290,7 +291,7 @@ app.onError((error, context) => {
     return context.json({ error: "HANDOFF_NOT_ACTIVE" }, 409);
   }
   const status = error instanceof HTTPException ? error.status : error instanceof DomainError ? 409 : 500;
-  console.error(JSON.stringify({ service: "matching", path: context.req.path, status, error: errorForLog(error, context.env) }));
+  console.error(JSON.stringify({ service: "matching", path: context.req.path, status, error: redactError(error, context.env) }));
   const detail = status === 500 ? "An unexpected error occurred" : error.message;
   return context.json({ error: error instanceof DomainError ? error.code : "request_failed", detail }, status);
 });
@@ -317,14 +318,6 @@ function handoffDetails(row: Row) {
     status: expectString(row.status, "handoff.status") as HandoffStatus,
     confirmationExpiresAt: new Date(expectNumber(row.confirmation_expires_at, "confirmation_expires_at")).toISOString()
   };
-}
-
-function errorForLog(error: unknown, env: Env): string {
-  let detail = String(error);
-  for (const secret of [env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN]) {
-    if (secret) detail = detail.replaceAll(secret, "<REDACTED>");
-  }
-  return detail;
 }
 
 async function loadState(client: Client, listingId: string, communityId: string): Promise<MatchingState> {
@@ -394,11 +387,15 @@ async function projectListing(env: Env, event: DomainEvent): Promise<void> {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> { return app.fetch(request, env, ctx); },
-  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) { ctx.waitUntil(publishOutbox(env)); },
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(publishOutbox(env).catch((error: unknown) =>
+      console.error(JSON.stringify({ service: "matching", job: "outbox", error: redactError(error, env) }))
+    ));
+  },
   async queue(batch: MessageBatch<DomainEvent>, env: Env) {
     for (const message of batch.messages) {
       try { await projectListing(env, domainEventSchema.parse(message.body)); message.ack(); }
-      catch (error) { console.error(JSON.stringify({ service: "matching", messageId: message.id, error: errorForLog(error, env) })); message.retry({ delaySeconds: 10 }); }
+      catch (error) { console.error(JSON.stringify({ service: "matching", messageId: message.id, error: redactError(error, env) })); message.retry({ delaySeconds: 10 }); }
     }
   }
 } satisfies ExportedHandler<Env, DomainEvent>;

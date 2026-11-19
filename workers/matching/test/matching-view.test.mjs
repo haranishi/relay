@@ -2,17 +2,18 @@ import { createClient } from "@libsql/client";
 import { readFileSync, readdirSync } from "node:fs";
 import { URL } from "node:url";
 import { INTERNAL_AUTH_HEADER, encodeAuthContext, matchingViewSchema } from "@relay/contracts";
-import { createTursoClient } from "@relay/turso";
+import { createTursoClient, publishPendingOutbox, redactError } from "@relay/turso";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import worker from "../src/index.ts";
 
 vi.mock("@relay/turso", async (original) => ({
   ...await original(),
   createTursoClient: vi.fn(),
-  publishPendingOutbox: () => Promise.resolve(0)
+  publishPendingOutbox: vi.fn(() => Promise.resolve(0))
 }));
 
 const viewPath = "listings/listing/matching";
+const logEnv = { TURSO_DATABASE_URL: "libsql://db.example.test", TURSO_AUTH_TOKEN: "dummy-test-token.+$" };
 let db;
 
 beforeEach(async () => {
@@ -131,4 +132,36 @@ it("reports a DB failure in logs and sends a generic 500 response", async () => 
   expect(response.status).toBe(500);
   expect(await response.json()).toEqual({ error: "request_failed", detail: "An unexpected error occurred" });
   expect(globalThis.console.error).toHaveBeenCalledWith(expect.stringContaining("no such table"));
+});
+
+it("redacts the exact URL, the host in an HTTPS URL and the token before truncating", () => {
+  const error = new Error("Failed at " + logEnv.TURSO_DATABASE_URL + " and https://db.example.test with " +
+    logEnv.TURSO_AUTH_TOKEN + " " + "x".repeat(500));
+  const message = redactError(error, logEnv);
+  expect(message).toHaveLength(500);
+  expect(message).toMatch(/^Error: Failed at <REDACTED> and https:\/\/<REDACTED> with <REDACTED> x+$/);
+});
+
+it("redacts the endpoint without its scheme when the configured URL cannot be parsed", () => {
+  expect(redactError("Failure at endpoint [test", { TURSO_DATABASE_URL: "libsql://endpoint [test" }))
+    .toBe("Failure at <REDACTED>");
+});
+
+it("preserves an error when redaction settings are empty or missing", () => {
+  for (const env of [{}, { TURSO_DATABASE_URL: "", TURSO_AUTH_TOKEN: "" }]) {
+    expect(redactError(new Error("DB unavailable"), env)).toBe("Error: DB unavailable");
+  }
+});
+
+it("handles scheduled outbox failure and logs only the redacted error", async () => {
+  vi.mocked(publishPendingOutbox).mockRejectedValueOnce(
+    new Error("DB unavailable at https://db.example.test with " + logEnv.TURSO_AUTH_TOKEN)
+  );
+  const waitUntil = vi.fn();
+  worker.scheduled({}, logEnv, { waitUntil });
+  expect(waitUntil).toHaveBeenCalledOnce();
+  await expect(waitUntil.mock.calls[0][0]).resolves.toBeUndefined();
+  expect(globalThis.console.error).toHaveBeenCalledWith(JSON.stringify({
+    service: "matching", job: "outbox", error: "Error: DB unavailable at https://<REDACTED> with <REDACTED>"
+  }));
 });

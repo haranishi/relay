@@ -20,3 +20,17 @@ it("shows only the events caused by the actions taken so far", () => {
     expect(actual, `step ${step}`).toEqual(expected.slice(0, count));
   }
 });
+
+it("招待コードの入口を2か所に表示し、デモの操作を明記する", () => {
+  vi.mocked(useState).mockReturnValue([0, vi.fn()]);
+  const html = renderToStaticMarkup(<RelayDemo />);
+  expect(html.match(/href="\/pilot">招待コードで試す<\/a>/g)).toHaveLength(2);
+  expect(html).toContain('まだ使えるを、<br/><em>次の人へ。</em>');
+  expect(html).toContain('<span class="pilot-nowrap">マッチング</span>');
+  // 緑の塗りの入口は、ヒーローの1つだけ。ヘッダーは枠線。押しても何も起きない飾りの丸は置かない。
+  expect(html.match(/class="pilot-button pilot-entry"/g)).toHaveLength(1);
+  expect(html.match(/class="pilot-button pilot-secondary pilot-entry"/g)).toHaveLength(1);
+  expect(html).not.toContain("avatar");
+  expect(html).toContain('<span class="demo-action-label">デモの操作</span><button class="demo-action-button"');
+  expect(html).not.toContain("PHOTO 01 / 03");
+});

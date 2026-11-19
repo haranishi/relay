@@ -8,7 +8,7 @@
     "cf-build": "opennextjs-cloudflare build",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint app components next.config.ts open-next.config.ts",
+    "lint": "eslint app components lib next.config.ts open-next.config.ts",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

@@ -7,5 +7,6 @@
   "workers_dev": true,
   "preview_urls": false,
   "assets": { "binding": "ASSETS", "directory": ".open-next/assets" },
+  "services": [{ "binding": "API_GATEWAY", "service": "relay-api-gateway" }],
   "observability": { "enabled": true }
 }

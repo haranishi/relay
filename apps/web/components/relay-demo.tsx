@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { demoSofaDescription } from "../lib/pilot-copy";
+import { ShareButtons } from "./share-buttons";
+import { SofaVisual } from "./sofa-visual";
 
 type DemoStep = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -40,8 +43,8 @@ export function RelayDemo() {
           <span>Relay</span>
         </a>
         <div className="header-actions">
+          <a className="pilot-button pilot-secondary pilot-entry" href="/pilot">招待コードで試す</a>
           <span className="community-pill"><span className="live-dot" />Relay Demo Campus</span>
-          <button className="avatar" type="button" aria-label="プロフィール">原</button>
         </div>
       </header>
 
@@ -49,7 +52,8 @@ export function RelayDemo() {
         <div>
           <span className="eyebrow">CAMPUS CIRCULAR MARKET</span>
           <h1>まだ使えるを、<br /><em>次の人へ。</em></h1>
-          <p>卒業で手放す家具を、必要としている在学生へ。<br />お金よりも「間に合う受け渡し」を中心にしたマッチングです。</p>
+          <p>卒業で手放す家具を、必要としている在学生へ。<br />お金よりも「間に合う受け渡し」を中心にした<span className="pilot-nowrap">マッチング</span>です。</p>
+          <a className="pilot-button pilot-entry" href="/pilot">招待コードで試す</a>
         </div>
         <div className="impact-card" aria-label="サービスの効果">
           <span>この受け渡しで</span>
@@ -61,27 +65,21 @@ export function RelayDemo() {
 
       <div className="demo-notice">
         <span className="demo-icon">▶</span>
-        <div><strong>インタラクティブ・デモ</strong><small>下のアクションを順に進めると、繰上げマッチングまで体験できます。</small></div>
+        <div><strong>インタラクティブ・デモ</strong><small>下のアクションを順に進めると、繰上げ<span className="pilot-nowrap">マッチング</span>まで体験できます。</small></div>
         <button type="button" onClick={() => setStep(0)}>最初から</button>
       </div>
 
       <section className="workspace" aria-label="Relayデモ">
         <article className="listing-panel">
-          <div className="sofa-visual" role="img" aria-label="譲渡予定のグリーンの二人掛けソファ">
-            <span className="visual-tag">無料</span>
-            <div className="sun" />
-            <div className="plant"><i /><b /><b /><b /></div>
-            <div className="sofa"><span className="sofa-back" /><span className="sofa-seat" /><i /><b /></div>
-            <span className="visual-caption">PHOTO 01 / 03</span>
-          </div>
+          <SofaVisual />
 
           <div className="listing-body">
             <div className="listing-meta"><span className={`status status-${step === 5 ? "done" : step >= 3 ? "reserved" : "open"}`}>{listingStatus}</span><span>家具</span><span>使用感あり</span></div>
             <h2>二人掛けソファ、引き取ってください</h2>
-            <p className="description">卒業に伴い手放します。4年間使いましたが、へたりは少なくまだ十分使えます。搬出を一緒に手伝ってくれる方を優先します。</p>
+            <p className="description">{demoSofaDescription}</p>
             <dl className="facts">
               <div><dt>受取場所</dt><dd>南キャンパス・学生寮A棟</dd></div>
-              <div><dt>受取期限</dt><dd><strong>3月24日 18:00まで</strong></dd></div>
+              <div><dt>受取期限</dt><dd><strong className={step < 5 ? "pickup-deadline-active" : undefined}>3月24日 18:00まで</strong></dd></div>
               <div><dt>サイズ</dt><dd>幅140 × 奥行75 × 高さ72cm</dd></div>
               <div><dt>搬出条件</dt><dd>3階 / エレベーターなし / 2名推奨</dd></div>
             </dl>
@@ -97,7 +95,8 @@ export function RelayDemo() {
               <span className="actor-label">いま操作する人</span>
               <strong>{currentScene.actor}</strong>
               <p>{currentScene.hint}</p>
-              <button type="button" onClick={advance}>{currentScene.action}<span>→</span></button>
+              <span className="demo-action-label">デモの操作</span>
+              <button className="demo-action-button" type="button" onClick={advance}>{currentScene.action}<span aria-hidden="true">→</span></button>
             </div>
           ) : (
             <div className="complete-card" role="region" aria-labelledby="completion-title" tabIndex={-1}
@@ -132,6 +131,7 @@ export function RelayDemo() {
           <span>→</span><Service name="一覧・通知" tech="Turso" />
         </div>
       </section>
+      <div className="pilot-home-share"><ShareButtons /></div>
       <footer><span>Relay / Systems Design 2026</span><span>Campus first. Community next.</span></footer>
     </main>
   );

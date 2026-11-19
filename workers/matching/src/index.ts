@@ -321,13 +321,18 @@ function handoffDetails(row: Row) {
 }
 
 async function loadState(client: Client, listingId: string, communityId: string): Promise<MatchingState> {
-  const [listing, applications, candidates, handoffs, idempotency] = await Promise.all([
-    client.execute({ sql: `SELECT owner_id, status FROM listing_snapshots WHERE id = ? AND community_id = ? LIMIT 1`, args: [listingId, communityId] }),
-    client.execute({ sql: `SELECT id, applicant_id, status FROM applications WHERE listing_id = ?`, args: [listingId] }),
-    client.execute({ sql: `SELECT application_id, rank, status FROM selection_candidates WHERE listing_id = ?`, args: [listingId] }),
-    client.execute({ sql: `SELECT id, application_id, giver_id, receiver_id, status, version, confirmation_expires_at FROM handoffs WHERE listing_id = ?`, args: [listingId] }),
-    client.execute({ sql: `SELECT key, resource_id FROM idempotency_keys WHERE listing_id = ?`, args: [listingId] })
-  ]);
+  // 再送用のキーと対応する受け渡しを含め、出品の状態を同じ時点で読む。
+  const results = await client.batch([
+    { sql: `SELECT owner_id, status FROM listing_snapshots WHERE id = ? AND community_id = ? LIMIT 1`, args: [listingId, communityId] },
+    { sql: `SELECT id, applicant_id, status FROM applications WHERE listing_id = ?`, args: [listingId] },
+    { sql: `SELECT application_id, rank, status FROM selection_candidates WHERE listing_id = ?`, args: [listingId] },
+    { sql: `SELECT id, application_id, giver_id, receiver_id, status, version, confirmation_expires_at FROM handoffs WHERE listing_id = ?`, args: [listingId] },
+    { sql: `SELECT key, resource_id FROM idempotency_keys WHERE listing_id = ?`, args: [listingId] }
+  ], "read");
+  const [listing, applications, candidates, handoffs, idempotency] = results;
+  if (results.length !== 5 || !listing || !applications || !candidates || !handoffs || !idempotency) {
+    throw new Error("Incomplete matching state query");
+  }
   const row = listing.rows[0];
   if (!row) throw new HTTPException(404, { message: "Listing is not available in matching service" });
   return {

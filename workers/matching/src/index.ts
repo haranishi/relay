@@ -27,7 +27,7 @@ import {
   parseJsonColumn,
   publishPendingOutbox
 } from "@relay/turso";
-import type { Client, InStatement } from "@libsql/client/web";
+import { LibsqlError, type Client, type InStatement } from "@libsql/client/web";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
@@ -56,6 +56,18 @@ app.post("/internal/listings/:listingId/applications", async (context) => {
   try {
     const state = await loadState(client, context.req.param("listingId"), auth.communityId);
     const application = applyForListing(state, { applicantId: auth.userId }, clock);
+    const detail = await context.env.LISTING_SERVICE.fetch(
+      new Request(`https://listing.internal/internal/listings/${encodeURIComponent(state.listingId)}`, {
+        headers: { [INTERNAL_AUTH_HEADER]: context.req.header(INTERNAL_AUTH_HEADER)! }
+      })
+    );
+    if (!detail.ok) throw new HTTPException(503, { message: "Could not check the pickup deadline" });
+    const { pickupDeadline } = await detail.json<{ pickupDeadline: string }>();
+    const deadline = Date.parse(pickupDeadline);
+    if (!Number.isFinite(deadline)) throw new Error("Invalid listing pickup deadline");
+    if (clock.now().getTime() > deadline) {
+      throw new DomainError("LISTING_NOT_OPEN", "受取期限を過ぎた出品には応募できません");
+    }
     const event = state.events.at(-1)!;
     await client.batch(
       [
@@ -84,6 +96,11 @@ app.post("/internal/listings/:listingId/applications", async (context) => {
     );
     context.executionCtx.waitUntil(publishOutbox(context.env));
     return context.json(application, 201);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("relay_listing_not_open")) {
+      throw new DomainError("LISTING_NOT_OPEN", "募集終了後は応募できません");
+    }
+    throw error;
   } finally {
     client.close();
   }
@@ -138,15 +155,20 @@ app.post("/internal/listings/:listingId/selection", async (context) => {
       sql: `INSERT INTO selection_candidates (listing_id, application_id, rank, status) VALUES (?, ?, ?, ?)`,
       args: [state.listingId, candidate.applicationId, candidate.rank, candidate.status]
     }));
+    // A reopened listing starts a new ranking. Keep the old handoffs as history.
+    statements.unshift({
+      sql: "DELETE FROM selection_candidates WHERE listing_id = ? AND status = 'skipped'",
+      args: [state.listingId]
+    });
     statements.push(
       ...state.applications.map((application) => ({
         sql: `UPDATE applications SET status = ? WHERE id = ?`,
         args: [application.status, application.id]
       })),
-      handoffInsert(handoff, parsed.data.confirmationExpiresAt),
+      handoffInsert(handoff),
       {
-        sql: `INSERT INTO idempotency_keys (key, resource_id, response_json, created_at) VALUES (?, ?, ?, ?)`,
-        args: [idempotencyKey, handoff.id, JSON.stringify(handoff), Date.now()]
+        sql: `INSERT INTO idempotency_keys (listing_id, key, resource_id, response_json, created_at) VALUES (?, ?, ?, ?, ?)`,
+        args: [state.listingId, idempotencyKey, handoff.id, JSON.stringify(handoff), Date.now()]
       },
       {
         sql: `UPDATE listing_snapshots SET status = 'RESERVED', updated_at = ? WHERE id = ?`,
@@ -186,7 +208,7 @@ app.post("/internal/handoffs/:handoffId/cancel", async (context) => {
       { sql: `UPDATE listing_snapshots SET status = ?, updated_at = ? WHERE id = ?`, args: [state.listingStatus, Date.now(), state.listingId] },
       ...state.events.map(outboxInsert)
     ];
-    if (next) statements.push(handoffInsert(next, new Date(Date.now() + 86_400_000).toISOString()));
+    if (next) statements.push(handoffInsert(next));
     await client.batch(statements, "write");
     context.executionCtx.waitUntil(publishOutbox(context.env));
     return context.json({ cancelledHandoffId: current.id, nextHandoff: next });
@@ -224,6 +246,9 @@ app.post("/internal/handoffs/:handoffId/complete", async (context) => {
 });
 
 app.onError((error, context) => {
+  if (error instanceof LibsqlError && error.message.includes("relay_handoff_already_closed")) {
+    return context.json({ error: "HANDOFF_NOT_ACTIVE" }, 409);
+  }
   const status = error instanceof HTTPException ? error.status : error instanceof DomainError ? 409 : 500;
   console.error(JSON.stringify({ service: "matching", path: context.req.path, status, error: String(error) }));
   return context.json({ error: error instanceof DomainError ? error.code : "request_failed", detail: error.message }, status);
@@ -234,8 +259,8 @@ async function loadState(client: Client, listingId: string, communityId: string)
     client.execute({ sql: `SELECT owner_id, status FROM listing_snapshots WHERE id = ? AND community_id = ? LIMIT 1`, args: [listingId, communityId] }),
     client.execute({ sql: `SELECT id, applicant_id, status FROM applications WHERE listing_id = ?`, args: [listingId] }),
     client.execute({ sql: `SELECT application_id, rank, status FROM selection_candidates WHERE listing_id = ?`, args: [listingId] }),
-    client.execute({ sql: `SELECT id, application_id, giver_id, receiver_id, status, version FROM handoffs WHERE listing_id = ?`, args: [listingId] }),
-    client.execute(`SELECT key, resource_id FROM idempotency_keys`)
+    client.execute({ sql: `SELECT id, application_id, giver_id, receiver_id, status, version, confirmation_expires_at FROM handoffs WHERE listing_id = ?`, args: [listingId] }),
+    client.execute({ sql: `SELECT key, resource_id FROM idempotency_keys WHERE listing_id = ?`, args: [listingId] })
   ]);
   const row = listing.rows[0];
   if (!row) throw new HTTPException(404, { message: "Listing is not available in matching service" });
@@ -262,6 +287,7 @@ async function loadState(client: Client, listingId: string, communityId: string)
       giverId: expectString(item.giver_id, "handoff.giver_id"),
       receiverId: expectString(item.receiver_id, "handoff.receiver_id"),
       status: expectString(item.status, "handoff.status") as HandoffStatus,
+      confirmationExpiresAt: new Date(expectNumber(item.confirmation_expires_at, "confirmation_expires_at")).toISOString(),
       eventVersion: expectNumber(item.version, "handoff.version")
     })),
     events: [],
@@ -274,10 +300,10 @@ async function loadState(client: Client, listingId: string, communityId: string)
   };
 }
 
-function handoffInsert(handoff: MatchingState["handoffs"][number], expiresAt: string): InStatement {
+function handoffInsert(handoff: MatchingState["handoffs"][number]): InStatement {
   return {
     sql: `INSERT INTO handoffs (id, listing_id, application_id, giver_id, receiver_id, status, confirmation_expires_at, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [handoff.id, handoff.listingId, handoff.applicationId, handoff.giverId, handoff.receiverId, handoff.status, Date.parse(expiresAt), handoff.eventVersion, Date.now(), Date.now()]
+    args: [handoff.id, handoff.listingId, handoff.applicationId, handoff.giverId, handoff.receiverId, handoff.status, Date.parse(handoff.confirmationExpiresAt), handoff.eventVersion, Date.now(), Date.now()]
   };
 }
 
@@ -290,7 +316,7 @@ async function projectListing(env: Env, event: DomainEvent): Promise<void> {
   const client = createTursoClient(env);
   try {
     await client.execute({
-      sql: `INSERT INTO listing_snapshots (id, community_id, owner_id, status, updated_at) VALUES (?, ?, ?, 'OPEN', ?) ON CONFLICT(id) DO UPDATE SET status = 'OPEN', updated_at = excluded.updated_at`,
+      sql: `INSERT INTO listing_snapshots (id, community_id, owner_id, status, updated_at) VALUES (?, ?, ?, 'OPEN', ?) ON CONFLICT(id) DO NOTHING`,
       args: [event.aggregateId, event.communityId, expectString(event.payload.ownerId, "payload.ownerId"), Date.now()]
     });
   } finally {

@@ -12,14 +12,9 @@ type AppEnv = { Bindings: Env; Variables: Variables };
 
 const app = new Hono<AppEnv>();
 
-app.use("/api/v1/*", async (context, next) => {
-  if (context.req.path === "/api/v1/health") {
-    await next();
-    return;
-  }
-
+app.use("/api/v1/communities/:communityId/*", async (context, next) => {
   const userId = context.req.header("x-relay-demo-user");
-  const communityId = context.req.param("communityId") || context.req.header("x-relay-community-id");
+  const communityId = context.req.param("communityId");
   if (context.env.ALLOW_DEMO_AUTH !== "true" || !userId || !communityId) {
     throw new HTTPException(401, { message: "Authentication is required" });
   }
@@ -51,7 +46,7 @@ app.get("/api/v1/health", (context) =>
 );
 
 app.get("/api/v1/communities/:communityId/listings", (context) =>
-  proxy(context, context.env.READ_MODEL_SERVICE, "/internal/listings")
+  proxy(context, context.env.READ_MODEL_SERVICE, `/internal/listings${new URL(context.req.url).search}`)
 );
 
 app.post("/api/v1/communities/:communityId/listings", (context) =>

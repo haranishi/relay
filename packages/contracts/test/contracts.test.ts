@@ -30,6 +30,18 @@ describe("contracts", () => {
     expect(decodeAuthContext(encodeAuthContext(context))).toEqual(context);
   });
 
+  it("round-trips Japanese identifiers and supplementary characters", () => {
+    const context = {
+      requestId: "019c8db0-6e34-7e44-927f-bb742f54dca9",
+      userId: "user-a",
+      communityId: "秋田大学",
+      membershipId: "会員📚",
+      membershipRole: "member" as const,
+      membershipVersion: 1
+    };
+    expect(decodeAuthContext(encodeAuthContext(context))).toEqual(context);
+  });
+
   it("rejects pickup slots with reversed times", () => {
     const result = createListingSchema.safeParse({
       title: "ソファ",

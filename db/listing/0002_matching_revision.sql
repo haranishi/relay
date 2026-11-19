@@ -1,0 +1,1 @@
+ALTER TABLE listings ADD COLUMN matching_revision INTEGER NOT NULL DEFAULT 0;

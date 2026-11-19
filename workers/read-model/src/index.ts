@@ -63,16 +63,18 @@ async function projectEvent(env: Env, event: DomainEvent): Promise<void> {
   try {
     const processed = await client.execute({ sql: `SELECT 1 FROM processed_events WHERE event_id = ?`, args: [event.eventId] });
     if (processed.rows.length > 0) return;
-    const statements: InStatement[] = [projection(event), {
-      sql: `INSERT INTO processed_events (event_id, event_type, processed_at) VALUES (?, ?, ?)`,
-      args: [event.eventId, event.eventType, Date.now()]
+    const listingId = expectString(event.payload.listingId ?? event.aggregateId, "payload.listingId");
+    const statements: InStatement[] = [projection(event, listingId), {
+      sql: `INSERT INTO processed_events (event_id, event_type, processed_at)
+            SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM listing_feed WHERE id = ?)`,
+      args: [event.eventId, event.eventType, Date.now(), listingId]
     }];
-    await client.batch(statements, "write");
+    const [, receipt] = await client.batch(statements, "write");
+    if (!receipt?.rowsAffected) throw new Error("Listing has not reached the feed yet");
   } finally { client.close(); }
 }
 
-function projection(event: DomainEvent): InStatement {
-  const listingId = expectString(event.payload.listingId ?? event.aggregateId, "payload.listingId");
+function projection(event: DomainEvent, listingId: string): InStatement {
   switch (event.eventType) {
     case "ListingPublished.v1":
       return {
@@ -100,11 +102,17 @@ function projection(event: DomainEvent): InStatement {
       return { sql: `UPDATE listing_feed SET applicant_count = applicant_count + 1, updated_at = ? WHERE id = ?`, args: [Date.now(), listingId] };
     case "RecipientSelected.v1":
     case "RecipientReoffered.v1":
-      return { sql: `UPDATE listing_feed SET status = 'RESERVED', active_receiver_id = ?, updated_at = ? WHERE id = ?`, args: [expectString(event.payload.receiverId, "payload.receiverId"), Date.now(), listingId] };
     case "HandoffCompleted.v1":
-      return { sql: `UPDATE listing_feed SET status = 'COMPLETED', active_receiver_id = ?, updated_at = ? WHERE id = ?`, args: [expectString(event.payload.receiverId, "payload.receiverId"), Date.now(), listingId] };
-    case "ListingReopened.v1":
-      return { sql: `UPDATE listing_feed SET status = 'OPEN', active_receiver_id = NULL, updated_at = ? WHERE id = ?`, args: [Date.now(), listingId] };
+    case "ListingReopened.v1": {
+      const status = event.eventType === "HandoffCompleted.v1" ? "COMPLETED" : event.eventType === "ListingReopened.v1" ? "OPEN" : "RESERVED";
+      const receiver = status === "OPEN" ? null : expectString(event.payload.receiverId, "payload.receiverId");
+      const revision = expectNumber(event.payload.listingRevision ?? 0, "payload.listingRevision");
+      return {
+        sql: `UPDATE listing_feed SET status = ?, active_receiver_id = ?, matching_revision = ?, updated_at = ?
+              WHERE id = ? AND status <> 'COMPLETED' AND (matching_revision = 0 OR matching_revision < ?)`,
+        args: [status, receiver, revision, Date.now(), listingId, revision]
+      };
+    }
     default:
       return { sql: `UPDATE listing_feed SET updated_at = updated_at WHERE id = ?`, args: [listingId] };
   }

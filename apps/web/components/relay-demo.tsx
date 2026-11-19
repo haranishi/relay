@@ -127,7 +127,7 @@ export function RelayDemo() {
         <div><span className="eyebrow">BEHIND THE SCENES</span><h2>画面の裏では、サービスが疎結合に連携</h2><p>障害が起きてもQueueがイベントを保持し、各サービスが自分のペースで処理します。</p></div>
         <div className="service-map" aria-label="システム構成">
           <Service name="API Gateway" tech="Workers" />
-          <span>→</span><Service name="出品" tech="Turso + R2" />
+          <span>→</span><Service name="出品" tech="Turso" />
           <span>→</span><Service name="Event Router" tech="Queues" highlight />
           <span>→</span><Service name="一覧・通知" tech="Turso" />
         </div>

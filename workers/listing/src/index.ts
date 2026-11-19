@@ -114,15 +114,7 @@ app.get("/internal/listings/:listingId", async (context) => {
   }
 });
 
-app.get("/internal/images/:key", async (context) => {
-  const object = await context.env.LISTING_IMAGES.get(context.req.param("key"));
-  if (!object) return context.json({ error: "image_not_found" }, 404);
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set("etag", object.httpEtag);
-  headers.set("cache-control", "private, max-age=3600");
-  return new Response(object.body, { headers });
-});
+app.get("/internal/images/:key", (context) => context.json({ error: "image_storage_disabled" }, 404));
 
 app.onError((error, context) => {
   const status = error instanceof HTTPException ? error.status : 500;

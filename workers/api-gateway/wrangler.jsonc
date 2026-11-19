@@ -4,7 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-07-23",
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
+  "workers_dev": false,
+  "preview_urls": false,
   "vars": {
     "ENVIRONMENT": "development",
     "ALLOW_DEMO_AUTH": "true"

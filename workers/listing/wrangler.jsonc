@@ -5,13 +5,11 @@
   "compatibility_date": "2026-07-23",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
+  "preview_urls": false,
   "vars": { "ENVIRONMENT": "development" },
   "secrets": {
     "required": ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN"]
   },
-  "r2_buckets": [
-    { "binding": "LISTING_IMAGES", "bucket_name": "relay-listing-images-dev" }
-  ],
   "queues": {
     "producers": [
       { "binding": "DOMAIN_EVENTS", "queue": "relay-domain-events-dev" }

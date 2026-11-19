@@ -177,10 +177,12 @@ export function SelectRecipientsForm({ applications, listingId, busy, runAction 
           );
         })}
       </ul>
-      {!primary && <p id={primaryHintId}>第一候補を1人選ぶと、候補を確定できます。</p>}
-      <p aria-live="polite">第一候補：{primary ? participantName(primary.applicantId) : "未選択"}／予備：{backupNames || "なし"}</p>
-      <button className="pilot-button pilot-main-action" type="submit" disabled={busy || !primary}
-        aria-describedby={primary ? undefined : primaryHintId}>候補を確定する</button>
+      <div className="pilot-select-actions">
+        {!primary && <p id={primaryHintId}>第一候補を1人選ぶと、候補を確定できます。</p>}
+        <p aria-live="polite">第一候補：{primary ? participantName(primary.applicantId) : "未選択"}／予備：{backupNames || "なし"}</p>
+        <button className="pilot-button pilot-main-action" type="submit" disabled={busy || !primary}
+          aria-describedby={primary ? undefined : primaryHintId}>候補を確定する</button>
+      </div>
     </form>
   );
 }

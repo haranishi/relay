@@ -88,6 +88,11 @@ export function PilotApp() {
                   <input name="code" type="password" autoComplete="off" autoCapitalize="off" spellCheck={false} required />
                 </label>
                 <button className="pilot-button pilot-main-action" type="submit" disabled={busy}>ログイン</button>
+                <ol className="pilot-intro-steps">
+                  <li>招待コードでログインします。</li>
+                  <li>画面の一番上に、いまあなたがすることが1つだけ出ます。</li>
+                  <li>出品から受け渡しの完了まで、実際のサービスと同じ仕組みで通します。</li>
+                </ol>
               </form>}
             </PrimaryCard>
           </div>
@@ -288,10 +293,11 @@ function ListingDetails({ listing, status }: { listing: Listing; status: Listing
     floor === undefined ? null : `${floor}階`,
     hasElevator === undefined ? null : hasElevator ? "エレベーターあり" : "エレベーターなし",
     helpersRequired === undefined ? null : helpersRequired === 0 ? "手伝い不要" : `手伝い ${helpersRequired}人`
-  ].filter(Boolean).join(" / ");
+  ].filter((item): item is string => item !== null);
   const category = new Map([["furniture", "家具"], ["daily_goods", "日用品"], ["books", "本"], ["other", "その他"]]).get(listing.category);
   const condition = new Map([["like_new", "新品に近い"], ["used_good", "状態良好"], ["used_visible_wear", "使用感あり"]]).get(listing.condition);
-  const deadlineClass = status === "OPEN" || status === "RESERVED" ? "pickup-deadline-active" : undefined;
+  // 承諾待ちのあいだは、承諾期限だけを強調する（受取期限を赤くすると、期限が2つ強調されて見える）。
+  const deadlineClass = status === "OPEN" ? "pickup-deadline-active" : undefined;
 
   return (
     <>
@@ -310,7 +316,9 @@ function ListingDetails({ listing, status }: { listing: Listing; status: Listing
           )}</ul></dd></div>
           <div><dt>受取期限</dt><dd><strong className={deadlineClass}><time dateTime={listing.pickupDeadline}>{formatPilotDate(listing.pickupDeadline)}</time>まで</strong></dd></div>
           {dimensionsCm && <div><dt>サイズ</dt><dd>幅{dimensionsCm.width} × 奥行{dimensionsCm.depth} × 高さ{dimensionsCm.height}cm</dd></div>}
-          {logistics && <div><dt>搬出条件</dt><dd>{logistics}</dd></div>}
+          {logistics.length > 0 && <div><dt>搬出条件</dt><dd>{logistics.map((item, index) =>
+            <span key={item}>{index > 0 && " / "}<span className="pilot-nowrap">{item}</span></span>
+          )}</dd></div>}
         </dl>
       </div>
     </>

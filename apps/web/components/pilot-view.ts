@@ -64,16 +64,18 @@ function progressSteps(status: MatchingView["listingStatus"], applications: Appl
   const hasApplication = applications.length > 0 || selected;
   const declined = handoffs.some((item) => item.status === "CANCELLED");
   const reopened = status === "OPEN" && declined;
-  return [
+  const steps: ProgressStep[] = [
     { label: "応募", state: hasApplication ? "done" : "active", detail: hasApplication ? "応募あり" : "応募待ち" },
     { label: "選定", state: reopened ? "active" : selected ? "done" : hasApplication ? "active" : "idle",
       detail: reopened ? "再選定待ち" : selected ? "選定済み" : "選定待ち" },
     { label: "辞退・繰り上げ", state: declined ? "done" : finished ? "skipped" : "idle",
-      // 受取人には、ほかの人の辞退は見えない。完了したあとは、自分の分に辞退が無かったことだけを伝える。
-      detail: declined ? "辞退あり" : finished ? (owner ? "辞退はありませんでした" : "あなたの分では、ありませんでした") : "必要に応じて次の候補へ" },
+      detail: declined ? "辞退あり" : finished ? "辞退はありませんでした" : "必要に応じて次の候補へ" },
     { label: "完了", state: finished ? "done" : status === "RESERVED" ? "active" : "idle",
       detail: finished ? "受け渡し済み" : status === "RESERVED" ? "受取人の操作待ち" : "受け渡し前" }
   ];
+  // 受取人には、ほかの人の辞退は見えない。完了したあとに自分の分で辞退が無かったときは、この段を出さない
+  // （「辞退・繰り上げ」を飛ばした印が、完了の緑のチェックのあいだで、失敗のように見えるため）。
+  return !owner && finished && !declined ? steps.filter(({ label }) => label !== "辞退・繰り上げ") : steps;
 }
 
 function listingEvents(applications: Application[], handoffs: Handoff[], owner: boolean): PilotEvent[] {

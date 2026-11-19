@@ -83,7 +83,8 @@ it("選ばれた人には承諾期限と、確定・辞退の操作を表示す�
   expect(html.toLowerCase()).toContain(`datetime="${handoff.confirmationExpiresAt.toLowerCase()}"`);
   expect(html).toContain("09:00");
   expect(html).toContain('09:00</time><span class="pilot-nowrap">（日本時間）</span>です。');
-  expect(html).toContain('class="pickup-deadline-active"');
+  // 承諾を求めているあいだは、承諾期限だけを強調する（受取期限は赤くしない）
+  expect(html).not.toContain('class="pickup-deadline-active"');
   expect(html).not.toContain("受取人A");
 });
 
@@ -155,7 +156,7 @@ it("選んだ候補をバッジと要約に出し、予備が2人いると他の
 it.each([
   { id: "giver", displayName: "出品者", viewerRole: "giver" as const },
   { id: "receiver-a", displayName: "受取人A", viewerRole: "applicant" as const }
-])("完了後は手動更新と受取期限の強調を外し、省略した工程を横棒で示す（$displayName）", ({ viewerRole, ...user }) => {
+])("完了後は手動更新と受取期限の強調を外し、出品者には省略の横棒を、受取人には辞退の段を出さない（$displayName）", ({ viewerRole, ...user }) => {
   const html = renderPilot(user, {
     listingStatus: "COMPLETED", viewerRole, applications: [], handoffs: [{
       id: "handoff-a", applicationId: applicantA.id, receiverId: applicantA.applicantId,
@@ -163,7 +164,14 @@ it.each([
     }]
   });
   expect(html).toContain("受け渡しが完了しました");
-  expect(html).toContain('class="progress-skipped"><span aria-hidden="true" class="progress-mark">—</span>');
+  if (viewerRole === "giver") {
+    expect(html).toContain('class="progress-skipped"><span aria-hidden="true" class="progress-mark">—</span>');
+    expect(html).toContain("辞退はありませんでした");
+  } else {
+    // 受取人には、ほかの人の辞退が見えない。「辞退・繰り上げ」の段は、失敗のように見えないよう、出さない
+    expect(html).not.toContain("辞退・繰り上げ");
+    expect(html).not.toContain("progress-skipped");
+  }
   expect(html).toContain("受取期限");
   expect(html).not.toContain('class="pickup-deadline-active"');
   expect(html).not.toContain("いま更新する");

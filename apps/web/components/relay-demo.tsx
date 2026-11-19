@@ -43,9 +43,8 @@ export function RelayDemo() {
           <span>Relay</span>
         </a>
         <div className="header-actions">
-          <a className="pilot-button pilot-entry" href="/pilot">招待コードで試す</a>
+          <a className="pilot-button pilot-secondary pilot-entry" href="/pilot">招待コードで試す</a>
           <span className="community-pill"><span className="live-dot" />Relay Demo Campus</span>
-          <span className="avatar" aria-hidden="true">原</span>
         </div>
       </header>
 

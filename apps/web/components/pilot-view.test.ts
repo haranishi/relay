@@ -180,12 +180,13 @@ describe("進み具合の『辞退・繰り上げ』", () => {
     ];
     expect(step(buildPilotView(giver, listing, { ...completed, viewerRole: "giver", handoffs })))
       .toMatchObject({ state: "done", detail: "辞退あり" });
-    expect(step(buildPilotView(bob, listing, { ...completed, handoffs }))).toMatchObject({
-      state: "skipped", detail: "あなたの分では、ありませんでした"
-    });
-    expect(step(buildPilotView(bob, listing, completed))).toMatchObject({
-      state: "skipped", detail: "あなたの分では、ありませんでした"
-    });
+    // 受取人Bには、Aの辞退が見えない。自分の分で辞退が無かったので、この段そのものを出さない。
+    for (const view of [buildPilotView(bob, listing, { ...completed, handoffs }), buildPilotView(bob, listing, completed)]) {
+      expect(view.progress.map(({ label }) => label)).toEqual(["応募", "選定", "完了"]);
+    }
+    // 自分が辞退した受取人Aには、「辞退あり」を出す。
+    expect(step(buildPilotView(alice, listing, { ...withdrawn, listingStatus: "COMPLETED" })))
+      .toMatchObject({ state: "done", detail: "辞退あり" });
     expect(step(buildPilotView(bob, listing, { ...open, viewerRole: "applicant", applications: [] })))
       .toMatchObject({ state: "idle", detail: "必要に応じて次の候補へ" });
   });

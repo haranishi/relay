@@ -79,6 +79,28 @@ it("shows all applications to the giver, a personal application to the applicant
   });
 });
 
+it("reads selection retry state in one read batch", async () => {
+  const path = "listings/listing/selection";
+  const selection = {
+    method: "POST", key: "unit-selection",
+    body: { selectedApplicationId: "a", backupApplicationIds: ["b"], confirmationExpiresAt: "2099-03-01T00:00:00.000Z" }
+  };
+  const selected = await request(path, selection);
+  expect(selected.status).toBe(201);
+  const handoff = await selected.json();
+
+  const execute = vi.fn(db.execute.bind(db));
+  const batch = vi.fn(db.batch.bind(db));
+  vi.mocked(createTursoClient).mockReturnValueOnce({ execute, batch, close() {} });
+
+  const retried = await request(path, selection);
+  expect(retried.status).toBe(200);
+  expect(await retried.json()).toEqual(handoff);
+  expect(execute).not.toHaveBeenCalled();
+  expect(batch).toHaveBeenCalledExactlyOnceWith(expect.any(Array), "read");
+  expect(batch.mock.calls[0][0]).toHaveLength(5);
+});
+
 it("allows B to find and complete their own handoff after A declines", async () => {
   const selected = await request("listings/listing/selection", {
     method: "POST", key: "unit-selection",

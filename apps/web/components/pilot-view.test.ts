@@ -129,3 +129,22 @@ it("同じ選定を再試行するとキーと期限を保ち、別の候補を�
   expect(selectionAttempt("application-b", [], attempt, now + 1000, newKey).key).toBe("dummy-second-key");
   expect(newKey).toHaveBeenCalledTimes(2);
 });
+
+describe("進み具合の『辞退・繰り上げ』", () => {
+  const step = (view: ReturnType<typeof buildPilotView>) => view.progress[2];
+
+  it("出品者には、辞退の有無をはっきり伝える", () => {
+    const withDecline = buildPilotView(giver, listing, { ...withdrawn, viewerRole: "giver" });
+    expect(step(withDecline)).toMatchObject({ state: "done", detail: "辞退あり" });
+    const noDecline = buildPilotView(giver, listing, { ...completed, viewerRole: "giver" });
+    expect(step(noDecline)).toMatchObject({ state: "idle", detail: "辞退はありませんでした" });
+  });
+
+  it("受取人は、ほかの人の辞退が見えないので、完了後は自分の分だけを伝える", () => {
+    expect(step(buildPilotView(bob, listing, completed))).toMatchObject({
+      state: "idle", detail: "あなたの分では、ありませんでした"
+    });
+    expect(step(buildPilotView(bob, listing, { ...open, viewerRole: "applicant", applications: [] }))?.detail)
+      .toBe("必要に応じて次の候補へ");
+  });
+});

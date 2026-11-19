@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 const listings = `${pilotCommunityPath}/listings`;
 const listingId = "[A-Za-z0-9-]{1,64}";
 const routes = [
+  { path: /^\/api\/v1\/health$/, methods: ["GET"] },
   { path: /^\/api\/v1\/session$/, methods: ["GET", "POST", "DELETE"] },
   { path: new RegExp(`^${listings}$`), methods: ["GET", "POST"] },
   { path: new RegExp(`^${listings}/${listingId}(?:/matching)?$`), methods: ["GET"] },
@@ -17,6 +18,15 @@ const forwardedHeaders = ["content-type", "idempotency-key", "cookie", "origin",
 const maxBodyBytes = 16 * 1024;
 
 const tooLarge = Symbol("too-large");
+
+// この Worker 自身のオリジン。URL から作った値に加えて、ブラウザが宛先として付ける Host ヘッダーからも作る
+// （ローカルの wrangler dev では、URL が localhost になり、ブラウザの 127.0.0.1 と食い違うため）。
+// Host は、ほかのサイトのページからは偽装できないので、Origin の確認の根拠にできる。
+function ownOrigins(request: Request): string[] {
+  const url = new URL(request.url);
+  const host = request.headers.get("host");
+  return host ? [url.origin, `${url.protocol}//${host}`] : [url.origin];
+}
 
 function problem(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
@@ -51,12 +61,12 @@ async function readLimitedText(
 }
 
 async function relay(request: Request): Promise<Response> {
-  const { pathname, origin, search } = new URL(request.url);
+  const { pathname, search } = new URL(request.url);
   const { method } = request;
   if (!routes.some((route) => route.path.test(pathname) && route.methods.includes(method))) {
     return problem(404, "not_found");
   }
-  if (method !== "GET" && request.headers.get("origin") !== origin) {
+  if (method !== "GET" && !ownOrigins(request).includes(request.headers.get("origin") ?? "")) {
     return problem(403, "forbidden_origin");
   }
 

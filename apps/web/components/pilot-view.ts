@@ -58,7 +58,7 @@ function primaryCard(
   return { kind: "closed" };
 }
 
-function progressSteps(status: MatchingView["listingStatus"], applications: Application[], handoffs: Handoff[]): ProgressStep[] {
+function progressSteps(status: MatchingView["listingStatus"], applications: Application[], handoffs: Handoff[], owner: boolean): ProgressStep[] {
   const finished = status === "COMPLETED";
   const selected = status === "RESERVED" || finished || handoffs.length > 0;
   const hasApplication = applications.length > 0 || selected;
@@ -69,7 +69,8 @@ function progressSteps(status: MatchingView["listingStatus"], applications: Appl
     { label: "選定", state: reopened ? "active" : selected ? "done" : hasApplication ? "active" : "idle",
       detail: reopened ? "再選定待ち" : selected ? "選定済み" : "選定待ち" },
     { label: "辞退・繰り上げ", state: declined ? "done" : "idle",
-      detail: declined ? "辞退あり" : "必要に応じて次の候補へ" },
+      // 受取人には、ほかの人の辞退は見えない。完了したあとは、自分の分に辞退が無かったことだけを伝える。
+      detail: declined ? "辞退あり" : finished ? (owner ? "辞退はありませんでした" : "あなたの分では、ありませんでした") : "必要に応じて次の候補へ" },
     { label: "完了", state: finished ? "done" : status === "RESERVED" ? "active" : "idle",
       detail: finished ? "受け渡し済み" : status === "RESERVED" ? "受取人の操作待ち" : "受け渡し前" }
   ];
@@ -117,7 +118,7 @@ export function buildPilotView(
   return {
     card,
     listingStatus,
-    progress: progressSteps(matching.listingStatus, applications, handoffs),
+    progress: progressSteps(matching.listingStatus, applications, handoffs, owner),
     events: listingEvents(applications, handoffs, owner)
   };
 }

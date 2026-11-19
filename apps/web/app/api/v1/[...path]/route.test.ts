@@ -23,7 +23,7 @@ beforeEach(() => {
 
 describe("Web から Gateway への中継", () => {
   it.each([
-    ["GET", session], ["POST", session], ["DELETE", session],
+    ["GET", "/api/v1/health"], ["GET", session], ["POST", session], ["DELETE", session],
     ["GET", listings], ["POST", listings], ["GET", `${listings}/a`],
     ["GET", `${listings}/${"a".repeat(64)}/matching`],
     ["GET", `${listings}/item-1/applications`], ["POST", `${listings}/item-1/applications`],
@@ -39,7 +39,7 @@ describe("Web から Gateway への中継", () => {
   });
 
   it.each([
-    ["GET", "/api/v1/health"], ["GET", "/api/v1/communities/other/listings"],
+    ["POST", "/api/v1/health"], ["GET", "/api/v1/health/extra"], ["GET", "/api/v1/communities/other/listings"],
     ["GET", `${listings}/item_1`], ["GET", `${listings}/${"a".repeat(65)}`],
     ["GET", `${listings}/item%2Fmatching`], ["GET", `${listings}/item-1/matching/extra`],
     ["POST", `${listings}/item-1/matching`], ["GET", `${listings}/item-1/selection`],
@@ -58,6 +58,20 @@ describe("Web から Gateway への中継", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({ error: "forbidden_origin" });
     expect(gatewayFetch).not.toHaveBeenCalled();
+  });
+
+  it("URL と Host が食い違うローカル（localhost と 127.0.0.1）でも、Host と同じ Origin なら通し、別のサイトは拒む", async () => {
+    const local = "http://localhost:8787";
+    const send = (originHeader: string, host: string) => POST(new Request(local + session, {
+      method: "POST", headers: { origin: originHeader, host }
+    }));
+    expect((await send("http://127.0.0.1:8787", "127.0.0.1:8787")).status).toBe(204);
+    expect((await send(local, "127.0.0.1:8787")).status).toBe(204);
+    for (const [originHeader, host] of [
+      ["http://evil.example", "127.0.0.1:8787"], ["https://127.0.0.1:8787", "127.0.0.1:8787"], ["http://127.0.0.1:8788", "127.0.0.1:8787"]
+    ] as const) {
+      expect((await send(originHeader, host)).status, `${originHeader} / ${host}`).toBe(403);
+    }
   });
 
   it("一覧の GET だけクエリを中継する", async () => {

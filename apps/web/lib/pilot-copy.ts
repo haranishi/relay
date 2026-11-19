@@ -28,17 +28,26 @@ export const transportLabels: Record<TransportMode, string> = {
   other: "その他"
 };
 
-const japanDateTime = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo", month: "long", day: "numeric",
-  weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+const japanDate = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo", month: "long", day: "numeric", weekday: "short"
+});
+const japanTime = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
 });
 
+// 「11月20日(金) 10:00〜12:00」の形にする。スマホの幅でも、時刻の途中で折り返されないように短くする。
 export function formatPickupSlot(slot: PickupSlot) {
-  return japanDateTime.formatRange(new Date(slot.startAt), new Date(slot.endAt));
+  const start = new Date(slot.startAt);
+  const end = new Date(slot.endAt);
+  const from = `${japanDate.format(start)} ${japanTime.format(start)}`;
+  return japanDate.format(start) === japanDate.format(end)
+    ? `${from}〜${japanTime.format(end)}`
+    : `${from}〜${japanDate.format(end)} ${japanTime.format(end)}`;
 }
 
 export function formatPilotDate(value: string) {
-  return japanDateTime.format(new Date(value));
+  const date = new Date(value);
+  return `${japanDate.format(date)} ${japanTime.format(date)}`;
 }
 
 export const sessionExpiredMessage = "ログインの有効期限が切れました。もう一度、招待コードを入れてください";

@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { main } from "./smoke.mjs";
 
-const origin = "https://relay-web.dummy.invalid";
+const origin = "https://relay-web.dummy.workers.dev";
 const listings = "/api/v1/communities/community-campus-demo/listings";
 const handoffs = "/api/v1/communities/community-campus-demo/handoffs";
 const session = "/api/v1/session";
@@ -130,4 +130,24 @@ test("Matching が404を返し続けたら45秒で打ち切る", async (t) => {
     assert.equal(method, "GET");
     assert.equal(url, origin + matching);
   }
+});
+
+test("--flow は、workers.dev 以外の宛先へ招待コードを送らない（明示の許可があるときだけ送る）", async (t) => {
+  const other = "https://relay.example.com";
+  const secretsPath = await secretsFile(t);
+  // 許可がなければ、最初の通信より前に止まる（招待コードが、別の相手に渡らない）
+  const { fetch: blocked, calls: blockedCalls } = stubFetch([]);
+  await assert.rejects(main([other, "--flow", "--secrets", secretsPath], { fetch: blocked, log: () => {} }), /--allow-host relay\.example\.com/);
+  assert.equal(blockedCalls.length, 0);
+  // 別のホスト名を許可しても、通らない
+  await assert.rejects(main([other, "--flow", "--allow-host", "other.example.com", "--secrets", secretsPath], { fetch: blocked, log: () => {} }), /--allow-host/);
+  assert.equal(blockedCalls.length, 0);
+  // 宛先と同じホスト名を許可したときだけ、通信に進む
+  const { fetch: allowed, calls } = stubFetch([["GET", "/api/v1/health", 500]]);
+  await assert.rejects(main([other, "--flow", "--allow-host", "relay.example.com", "--secrets", secretsPath], { fetch: allowed, log: () => {} }), /ヘルスチェック/);
+  assert.equal(calls.length, 1);
+  // --flow なしの確認は、どの宛先でも読み取りだけで、招待コードを送らない
+  const { fetch: readOnly, calls: readOnlyCalls } = stubFetch([["GET", "/api/v1/health", 500]]);
+  await assert.rejects(main([other], { fetch: readOnly, log: () => {} }), /ヘルスチェック/);
+  assert.equal(readOnlyCalls.length, 1);
 });

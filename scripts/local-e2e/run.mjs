@@ -207,10 +207,35 @@ async function writePrivate(file, body) {
   await chmod(file, 0o600);
 }
 
+// このスクリプトが作った .dev.vars の印。印の無い .dev.vars は、開発者が自分で作った本物の設定なので、上書きしない。
+const DEV_VARS_MARK = "# relay の local-e2e が作った一時ファイル（終了時に消す）\n";
+const writtenDevVars = [];
+
+async function claimDevVars(files) {
+  for (const file of files) {
+    const existing = await readFile(file, "utf8").catch(() => null);
+    if (existing !== null && !existing.startsWith(DEV_VARS_MARK)) {
+      throw new Error(`${path.relative(ROOT, file)} が既にあり、このスクリプトが作ったものではないので、上書きしません。退避してから、もう一度実行してください。`);
+    }
+  }
+}
+
+async function writeDevVarsFile(file, body) {
+  await writePrivate(file, DEV_VARS_MARK + body);
+  writtenDevVars.push(file);
+}
+
+async function removeDevVars() {
+  for (const file of writtenDevVars) await rm(file, { force: true });
+}
+
 async function writeDevVars() {
-  for (const database of DATABASES) {
+  const gatewayFile = path.join(ROOT, "workers/api-gateway/.dev.vars");
+  const dbFiles = DATABASES.map((database) => path.join(ROOT, "workers", database.worker, ".dev.vars"));
+  await claimDevVars([...dbFiles, gatewayFile]);
+  for (const [index, database] of DATABASES.entries()) {
     const body = `TURSO_DATABASE_URL=http://127.0.0.1:${database.port}\nTURSO_AUTH_TOKEN=\n`;
-    await writePrivate(path.join(ROOT, "workers", database.worker, ".dev.vars"), body);
+    await writeDevVarsFile(dbFiles[index], body);
   }
   const codes = {
     sessionKey: newSecret(),
@@ -225,7 +250,7 @@ async function writeDevVars() {
     `RELAY_INVITE_B=${codes.b}`,
     ""
   ].join("\n");
-  await writePrivate(path.join(ROOT, "workers/api-gateway/.dev.vars"), gateway);
+  await writeDevVarsFile(gatewayFile, gateway);
   if (!serveMode) console.log(`シークレットを4つ設定した（各${SECRET_BYTES}バイト）`);
   return codes;
 }
@@ -851,6 +876,7 @@ try {
   await writeFile(path.join(LOG_DIR, `${LABEL}-result.json`), `${JSON.stringify(partial, null, 2)}\n`).catch(() => {});
 } finally {
   const leftovers = await stopChildren();
+  await removeDevVars();
   const lines = await listenLines();
   console.log(`CLEANUP leftovers=${JSON.stringify(leftovers)} ports=${lines || "free"}`);
   if (leftovers.length > 0 || lines) exitCode = 1;

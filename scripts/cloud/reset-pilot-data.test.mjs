@@ -120,3 +120,17 @@ test("途中で失敗したら削除を取り消し、エラーに接続情報�
   assert.equal(await tableSize(client, "listings"), 1);
   assert.equal(await tableSize(client, "outbox_events"), 1);
 });
+
+test("指定した DB と違う DB に接続していたら、何も消さずに止まる", async (t) => {
+  const listing = await database(t, "listing");
+  const matching = await database(t, "matching");
+  const readModel = await database(t, "read-model");
+  const cases = [
+    ["matching", listing, "listings"], ["listing", matching, "handoffs"], ["listing", readModel, "listing_feed"],
+    ["read-model", matching, "handoffs"]
+  ];
+  for (const [target, wrong, table] of cases) {
+    await assert.rejects(main([target, "--apply"], { env: wrong.env, log: () => {} }), /接続先/);
+    assert.ok(await tableSize(wrong.client, table) > 0, `${target} の指定で ${table} が消えた`);
+  }
+});

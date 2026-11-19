@@ -14,7 +14,7 @@ const listings = `${community}/listings`;
 const handoffs = `${community}/handoffs`;
 const requestTimeout = 15_000;
 const matchingTimeout = 45_000;
-const usage = "使い方: node scripts/cloud/smoke.mjs <公開URL> [--secrets <JSONのパス>] [--flow]";
+const usage = "使い方: node scripts/cloud/smoke.mjs <公開URL> [--secrets <JSONのパス>] [--flow [--allow-host <ホスト名>]]";
 
 function publicOrigin(value) {
   const url = URL.parse(value);
@@ -133,9 +133,16 @@ async function runFlow(request, secrets, now, pause) {
 }
 
 export async function main(args, { fetch = globalThis.fetch, log = console.log, now = () => performance.now(), pause = sleep } = {}) {
-  const { values, positionals } = parseCliArgs(args, { secrets: { type: "string" }, flow: { type: "boolean" } }, usage);
+  const { values, positionals } = parseCliArgs(
+    args, { secrets: { type: "string" }, flow: { type: "boolean" }, "allow-host": { type: "string" } }, usage
+  );
   if (positionals.length !== 1) throw new CliError(usage);
   const origin = publicOrigin(positionals[0]);
+  // --flow は招待コードを送る。URL の打ち間違いや、別の相手に渡さないよう、workers.dev か、明示した宛先だけにする。
+  const { hostname } = new URL(origin);
+  if (values.flow && !hostname.endsWith(".workers.dev") && values["allow-host"] !== hostname) {
+    throw new CliError(`--flow は、招待コードを ${hostname} へ送ります。workers.dev 以外へ送るときは、--allow-host ${hostname} を付けてください。`);
+  }
   const secrets = values.flow ? await readPilotSecrets(values.secrets) : undefined;
   const request = requester(origin, fetch, log);
 
